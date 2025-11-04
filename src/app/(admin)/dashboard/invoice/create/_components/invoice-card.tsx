@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { InputNumber } from "@/components/input-number";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useInvoice } from "./invoice-context";
 
 type InvoiceItem = {
   name: string;
@@ -31,17 +32,9 @@ type InvoiceItem = {
 };
 
 export default function InvoiceCard({ showPreview = false }: { showPreview?: boolean }) {
+  const { invoiceData, updateInvoiceData } = useInvoice();
+
   const [tabSection, setTabSection] = useState<string>("general");
-  const [dateIssued, setDateIssued] = useState<Date>(new Date());
-  const [dateDue, setDateDue] = useState<Date | undefined>(undefined);
-  const [currency, setCurrency] = useState<string>("USD");
-  const [items, setItems] = useState<InvoiceItem[]>([
-    { name: "Cloud Hosting Subscription", description: null, quantity: 1, unitPrice: 3500 },
-    { name: "Data Analytics Report", description: null, quantity: 2, unitPrice: 750 },
-    { name: "On-Site Technical Support", description: null, quantity: 1, unitPrice: 400 },
-  ]);
-  const [taxRate, setTaxRate] = useState<number>(10);
-  const [discount, setDiscount] = useState<number>(0);
 
   const currencyData = [
     { name: "USD", symbol: "$", label: "US Dollar" },
@@ -52,11 +45,15 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
   ];
 
   const handleAddItem = (): void => {
-    setItems([...items, { name: "", description: null, quantity: 1, unitPrice: 0 }]);
+    updateInvoiceData({
+      items: [...invoiceData.items, { name: "", description: null, quantity: 1, unitPrice: 0 }],
+    });
   };
 
   const handleRemoveItem = (index: number): void => {
-    setItems(items.filter((_, i) => i !== index));
+    updateInvoiceData({
+      items: invoiceData.items.filter((_, i) => i !== index),
+    });
   };
 
   const handleItemChange = (
@@ -64,14 +61,14 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
     field: keyof InvoiceItem,
     value: string | number,
   ): void => {
-    const updatedItems = [...items];
+    const updatedItems = [...invoiceData.items];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
-    setItems(updatedItems);
+    updateInvoiceData({ items: updatedItems });
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const taxAmount = (subtotal * taxRate) / 100;
-  const total = subtotal + taxAmount - discount;
+  const subtotal = invoiceData.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const taxAmount = (subtotal * invoiceData.taxRate) / 100;
+  const total = subtotal + taxAmount - invoiceData.discount;
 
   return (
     <Card className={`w-full ${showPreview ? "md:max-w-1/2" : ""}`}>
@@ -144,7 +141,13 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
 
             <div className="space-y-2">
               <Label htmlFor="invoiceNumber">Invoice Number</Label>
-              <Input type="text" id="invoiceNumber" placeholder="ZKDEV_ _ _ _ _ _ _ _ _ _ _" />
+              <Input
+                type="text"
+                id="invoiceNumber"
+                placeholder="ZKDEV_ _ _ _ _ _ _ _ _ _ _"
+                value={invoiceData.invoiceNumber}
+                onChange={(e) => updateInvoiceData({ invoiceNumber: e.target.value })}
+              />
             </div>
 
             <div className="flex w-full flex-col md:flex-row gap-3 space-y-2">
@@ -154,19 +157,25 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      data-empty={!dateIssued}
+                      data-empty={!invoiceData.dateIssued}
                       className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon />
-                      {dateIssued ? format(dateIssued, "PPP") : <span>Pick a date</span>}
+                      {invoiceData.dateIssued ? (
+                        format(invoiceData.dateIssued, "PPP")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar
                       id="dateIssued"
                       mode="single"
-                      selected={dateIssued}
-                      onSelect={(selectedDate) => selectedDate && setDateIssued(selectedDate)}
+                      selected={invoiceData.dateIssued}
+                      onSelect={(selectedDate) =>
+                        selectedDate && updateInvoiceData({ dateIssued: selectedDate })
+                      }
                       initialFocus
                     />
                   </PopoverContent>
@@ -178,19 +187,23 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      data-empty={!dateDue}
+                      data-empty={!invoiceData.dateDue}
                       className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon />
-                      {dateDue ? format(dateDue, "PPP") : <span>Pick a date</span>}
+                      {invoiceData.dateDue ? (
+                        format(invoiceData.dateDue, "PPP")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar
                       id="dateDue"
                       mode="single"
-                      selected={dateDue}
-                      onSelect={setDateDue}
+                      selected={invoiceData.dateDue}
+                      onSelect={(date) => updateInvoiceData({ dateDue: date || undefined })}
                       initialFocus
                     />
                   </PopoverContent>
@@ -220,10 +233,13 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
 
             {/* Invoice Items */}
             <div className="border-t pt-4 space-y-3">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                 <Label htmlFor="invoiceItems">Invoice Items/Service</Label>
-                <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger className="w-50">
+                <Select
+                  value={invoiceData.currency}
+                  onValueChange={(value) => updateInvoiceData({ currency: value })}
+                >
+                  <SelectTrigger className="w-full md:w-50">
                     <SelectValue placeholder="Currency" />
                   </SelectTrigger>
                   <SelectContent>
@@ -236,7 +252,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 </Select>
               </div>
 
-              <div className="grid grid-cols-12 gap-3 items-start">
+              <div className="hidden md:grid grid-cols-12 gap-3 items-start">
                 <div className="col-span-5 space-y-3">
                   <Label className="font-bold" htmlFor="itemName">
                     Item Name
@@ -259,10 +275,11 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 </div>
               </div>
 
-              {items.map((item, index) => (
+              {invoiceData.items.map((item, index) => (
                 <div key={index} className="grid grid-cols-12 gap-1 items-start">
-                  <div className="col-span-5 space-y-3">
+                  <div className="col-span-12 md:col-span-5 mb-2 md:mb-0 space-y-3">
                     <Input
+                      className="mb-1"
                       type="text"
                       name="itemName"
                       placeholder="Item name"
@@ -277,36 +294,42 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                       className="min-h-16"
                     />
                   </div>
-                  <InputNumber
-                    className="col-span-2"
-                    value={item.quantity}
-                    min={0}
-                    onValueChange={(value) => handleItemChange(index, "quantity", value || 0)}
-                  />
-                  <InputCurrency
-                    currency={currency}
-                    name="itemUnitPrice"
-                    className="col-span-2"
-                    value={item.unitPrice}
-                    onValueChange={(value) =>
-                      handleItemChange(index, "unitPrice", value === undefined ? 0 : value)
-                    }
-                  />
-                  <InputCurrency
-                    currency={currency}
-                    type="text"
-                    name="itemTotal"
-                    className="col-span-2"
-                    value={item.quantity * item.unitPrice}
-                    readOnly
-                    disabled
-                  />
-                  <div className="col-span-1 flex items-center justify-center">
+                  <div className="col-span-6 md:col-span-2">
+                    <InputNumber
+                      className="w-full"
+                      value={item.quantity}
+                      min={0}
+                      onValueChange={(value) => handleItemChange(index, "quantity", value || 0)}
+                    />
+                  </div>
+                  <div className="col-span-6 md:col-span-2">
+                    <InputCurrency
+                      currency={invoiceData.currency}
+                      name="itemUnitPrice"
+                      className="w-full"
+                      value={item.unitPrice}
+                      onValueChange={(value) =>
+                        handleItemChange(index, "unitPrice", value === undefined ? 0 : value)
+                      }
+                    />
+                  </div>
+                  <div className="col-span-6 md:col-span-2">
+                    <InputCurrency
+                      currency={invoiceData.currency}
+                      type="text"
+                      name="itemTotal"
+                      className="w-full"
+                      value={item.quantity * item.unitPrice}
+                      readOnly
+                      disabled
+                    />
+                  </div>
+                  <div className="col-span-6 md:col-span-1 flex items-center justify-center">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="hover:text-error hover:bg-error/20 h-6 w-6"
+                      className="hover:text-error hover:bg-error/20 h-8 w-8"
                       onClick={() => handleRemoveItem(index)}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -321,12 +344,12 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
             </div>
 
             {/* Tax and Discount */}
-            <div className="border-t pt-4 grid grid-cols-2 gap-4">
+            <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="taxRate">Tax Percentage</Label>
                 <Select
-                  value={taxRate.toString()}
-                  onValueChange={(value) => setTaxRate(parseInt(value))}
+                  value={invoiceData.taxRate.toString()}
+                  onValueChange={(value) => updateInvoiceData({ taxRate: parseInt(value) })}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select tax" />
@@ -342,10 +365,10 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 <Label htmlFor="discount">Discount (Optional)</Label>
                 <InputCurrency
                   id="discount"
-                  currency={currency}
+                  currency={invoiceData.currency}
                   placeholder="Enter discount amount"
-                  value={discount}
-                  onValueChange={(value) => setDiscount(value || 0)}
+                  value={invoiceData.discount}
+                  onValueChange={(value) => updateInvoiceData({ discount: value || 0 })}
                 />
               </div>
             </div>
@@ -355,7 +378,8 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <Textarea
                 name="note"
                 placeholder="Note"
-                defaultValue={"It was great doing business with you."}
+                value={invoiceData.note}
+                onChange={(e) => updateInvoiceData({ note: e.target.value })}
                 className="min-h-16"
               />
             </div>
@@ -365,7 +389,8 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <Textarea
                 name="anotherNote"
                 placeholder="Terms & Conditions"
-                defaultValue={"Please make the payment by the due date."}
+                value={invoiceData.terms}
+                onChange={(e) => updateInvoiceData({ terms: e.target.value })}
                 className="min-h-16"
               />
             </div>
@@ -375,7 +400,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <div className="flex justify-between items-center py-2">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">
-                  {getCurrencySymbol(currency)}{" "}
+                  {getCurrencySymbol(invoiceData.currency)}{" "}
                   {new Intl.NumberFormat("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
@@ -384,9 +409,9 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               </div>
 
               <div className="flex justify-between items-center py-2">
-                <span className="text-muted-foreground">Tax ({taxRate}%)</span>
+                <span className="text-muted-foreground">Tax ({invoiceData.taxRate}%)</span>
                 <span className="font-medium">
-                  {getCurrencySymbol(currency)}{" "}
+                  {getCurrencySymbol(invoiceData.currency)}{" "}
                   {new Intl.NumberFormat("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
@@ -394,15 +419,15 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 </span>
               </div>
 
-              {discount > 0 && (
+              {invoiceData.discount > 0 && (
                 <div className="flex justify-between items-center py-2 text-error">
                   <span className="text-muted-foreground">Discount</span>
                   <span className="font-medium">
-                    - {getCurrencySymbol(currency)}{" "}
+                    - {getCurrencySymbol(invoiceData.currency)}{" "}
                     {new Intl.NumberFormat("en-US", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
-                    }).format(discount)}
+                    }).format(invoiceData.discount)}
                   </span>
                 </div>
               )}
@@ -410,7 +435,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <div className="flex justify-between items-center pt-4 border-t border-border">
                 <span className="text-lg font-semibold">Total</span>
                 <span className="text-xl font-bold">
-                  {getCurrencySymbol(currency)}{" "}
+                  {getCurrencySymbol(invoiceData.currency)}{" "}
                   {new Intl.NumberFormat("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
