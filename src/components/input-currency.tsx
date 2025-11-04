@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useMemo, useState } from "react";
 import { NumericFormat, NumericFormatProps } from "react-number-format";
 
 import { Input } from "@/components/ui/input";
@@ -13,13 +13,16 @@ type InputCurrencyProps = {
   onValueChange?: (value: number | undefined) => void;
   className?: string;
   inputClassName?: string;
+  locale?: string;
   thousandSeparator?: NumericFormatProps["thousandSeparator"];
+  decimalSeparator?: NumericFormatProps["decimalSeparator"];
 } & Omit<
   NumericFormatProps,
   | "value"
   | "onValueChange"
   | "customInput"
   | "thousandSeparator"
+  | "decimalSeparator"
   | "prefix"
   | "suffix"
 >;
@@ -32,7 +35,9 @@ const InputCurrency = forwardRef<HTMLInputElement, InputCurrencyProps>(
       onValueChange,
       className,
       inputClassName,
-      thousandSeparator = ",",
+      locale: localeProp,
+      thousandSeparator,
+      decimalSeparator,
       decimalScale = 2,
       fixedDecimalScale = true,
       allowNegative = false,
@@ -41,6 +46,48 @@ const InputCurrency = forwardRef<HTMLInputElement, InputCurrencyProps>(
     ref,
   ) => {
     const currencySymbol = getCurrencySymbol(currency);
+    const [browserLocale, setBrowserLocale] = useState<string>(() =>
+      Intl.NumberFormat().resolvedOptions().locale,
+    );
+
+    useEffect(() => {
+      if (typeof navigator !== "undefined") {
+        const preferredLocale = navigator.language || navigator.languages?.[0];
+
+        if (preferredLocale) {
+          const scheduleUpdate =
+            typeof queueMicrotask === "function"
+              ? queueMicrotask
+              : (callback: () => void) => {
+                  Promise.resolve().then(callback);
+                };
+
+          scheduleUpdate(() => {
+            setBrowserLocale(preferredLocale);
+          });
+        }
+      }
+    }, []);
+
+    const locale = localeProp ?? browserLocale;
+
+    const { resolvedThousandSeparator, resolvedDecimalSeparator } = useMemo(() => {
+      try {
+        const parts = new Intl.NumberFormat(locale).formatToParts(123456.7);
+        const group = parts.find((part) => part.type === "group")?.value ?? ",";
+        const decimal = parts.find((part) => part.type === "decimal")?.value ?? ".";
+
+        return {
+          resolvedThousandSeparator: thousandSeparator ?? group,
+          resolvedDecimalSeparator: decimalSeparator ?? decimal,
+        };
+      } catch {
+        return {
+          resolvedThousandSeparator: thousandSeparator ?? ",",
+          resolvedDecimalSeparator: decimalSeparator ?? ".",
+        };
+      }
+    }, [locale, thousandSeparator, decimalSeparator]);
 
     return (
       <div className={cn("relative w-full", className)}>
@@ -50,7 +97,8 @@ const InputCurrency = forwardRef<HTMLInputElement, InputCurrencyProps>(
         <NumericFormat
           value={value}
           onValueChange={(values) => onValueChange?.(values.floatValue)}
-          thousandSeparator={thousandSeparator}
+          thousandSeparator={resolvedThousandSeparator}
+          decimalSeparator={resolvedDecimalSeparator}
           decimalScale={decimalScale}
           fixedDecimalScale={fixedDecimalScale}
           allowNegative={allowNegative}

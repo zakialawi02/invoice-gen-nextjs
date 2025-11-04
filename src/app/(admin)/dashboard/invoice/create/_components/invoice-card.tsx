@@ -1,3 +1,5 @@
+"use client";
+
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CalendarIcon, PlusCircle, ReceiptText, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -37,6 +39,44 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
   ]);
   const [taxRate, setTaxRate] = useState<number>(10);
   const [discount, setDiscount] = useState<number>(0);
+  const [locale, setLocale] = useState<string>(() => Intl.NumberFormat().resolvedOptions().locale);
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined") {
+      const preferredLocale = navigator.language || navigator.languages?.[0];
+
+      if (preferredLocale) {
+        const scheduleUpdate =
+          typeof queueMicrotask === "function"
+            ? queueMicrotask
+            : (callback: () => void) => {
+                Promise.resolve().then(callback);
+              };
+
+        scheduleUpdate(() => {
+          setLocale(preferredLocale);
+        });
+      }
+    }
+  }, []);
+
+  const currencyFractionDigits = useMemo(() => {
+    try {
+      const formatter = new Intl.NumberFormat(locale, { style: "currency", currency });
+      const resolvedOptions = formatter.resolvedOptions();
+
+      return resolvedOptions.maximumFractionDigits;
+    } catch {
+      return 2;
+    }
+  }, [currency, locale]);
+
+  const numberFormatter = useMemo(() => {
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: currencyFractionDigits,
+      maximumFractionDigits: currencyFractionDigits,
+    });
+  }, [currencyFractionDigits, locale]);
 
   const currencyData = [
     { name: "USD", symbol: "$", label: "US Dollar" },
@@ -228,6 +268,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                   name="itemUnitPrice"
                   className="col-span-2"
                   value={item.unitPrice}
+                  decimalScale={currencyFractionDigits}
                   onValueChange={(value) =>
                     handleItemChange(index, "unitPrice", value === undefined ? 0 : value)
                   }
@@ -236,7 +277,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                   type="text"
                   name="itemTotal"
                   className="col-span-2"
-                  value={`${getCurrencySymbol(currency)} ${(item.quantity * item.unitPrice).toLocaleString()}`}
+                  value={`${getCurrencySymbol(currency)} ${numberFormatter.format(item.quantity * item.unitPrice)}`}
                   readOnly
                   disabled
                 />
@@ -284,6 +325,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 currency={currency}
                 placeholder="Enter discount amount"
                 value={discount}
+                decimalScale={currencyFractionDigits}
                 onValueChange={(value) => setDiscount(value || 0)}
               />
             </div>
@@ -297,14 +339,14 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
           <div className="flex justify-between items-center py-2">
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-medium">
-              {getCurrencySymbol(currency)} {subtotal.toLocaleString()}
+              {getCurrencySymbol(currency)} {numberFormatter.format(subtotal)}
             </span>
           </div>
 
           <div className="flex justify-between items-center py-2">
             <span className="text-muted-foreground">Tax ({taxRate}%)</span>
             <span className="font-medium">
-              {getCurrencySymbol(currency)} {taxAmount.toLocaleString()}
+              {getCurrencySymbol(currency)} {numberFormatter.format(taxAmount)}
             </span>
           </div>
 
@@ -312,7 +354,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
             <div className="flex justify-between items-center py-2 text-error">
               <span className="text-muted-foreground">Discount</span>
               <span className="font-medium">
-                - {getCurrencySymbol(currency)} {discount.toLocaleString()}
+                - {getCurrencySymbol(currency)} {numberFormatter.format(discount)}
               </span>
             </div>
           )}
@@ -320,7 +362,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
           <div className="flex justify-between items-center pt-4 border-t border-border">
             <span className="text-lg font-semibold">Total</span>
             <span className="text-xl font-bold">
-              {getCurrencySymbol(currency)} {total.toLocaleString()}
+              {getCurrencySymbol(currency)} {numberFormatter.format(total)}
             </span>
           </div>
         </div>
