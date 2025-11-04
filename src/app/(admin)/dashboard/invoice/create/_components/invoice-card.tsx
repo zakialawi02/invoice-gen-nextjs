@@ -330,6 +330,25 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               />
             </div>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="note">Note</Label>
+            <Textarea
+              name="note"
+              placeholder="Note"
+              defaultValue={"It was great doing business with you."}
+              className="min-h-16"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="anotherNote">Additional Field</Label>
+            <Textarea
+              name="anotherNote"
+              placeholder="Terms & Conditions"
+              defaultValue={"Please make the payment by the due date."}
+              className="min-h-16"
+            />
+          </div>
         </form>
       </CardContent>
 
