@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CalendarIcon, PlusCircle, ReceiptText, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -39,73 +39,23 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
   ]);
   const [taxRate, setTaxRate] = useState<number>(10);
   const [discount, setDiscount] = useState<number>(0);
-  const [locale, setLocale] = useState<string>(() => {
-    if (typeof document !== "undefined") {
-      const documentLang = document.documentElement.lang?.trim();
-
-      if (documentLang) {
-        return documentLang;
-      }
-    }
-
-    if (typeof navigator !== "undefined") {
-      const preferredLocale = navigator.language || navigator.languages?.[0];
-
-      if (preferredLocale) {
-        return preferredLocale;
-      }
-    }
-
-    return Intl.NumberFormat().resolvedOptions().locale;
-  });
-
-  useEffect(() => {
-    const scheduleUpdate =
-      typeof queueMicrotask === "function"
-        ? queueMicrotask
-        : (callback: () => void) => {
-            Promise.resolve().then(callback);
-          };
-
-    if (typeof document !== "undefined") {
-      const documentLang = document.documentElement.lang?.trim();
-
-      if (documentLang) {
-        scheduleUpdate(() => {
-          setLocale(documentLang);
-        });
-        return;
-      }
-    }
-
-    if (typeof navigator !== "undefined") {
-      const preferredLocale = navigator.language || navigator.languages?.[0];
-
-      if (preferredLocale) {
-        scheduleUpdate(() => {
-          setLocale(preferredLocale);
-        });
-      }
-    }
-  }, []);
-
   const currencyFractionDigits = useMemo(() => {
     try {
-      const formatter = new Intl.NumberFormat(locale, { style: "currency", currency });
+      const formatter = new Intl.NumberFormat(undefined, { style: "currency", currency });
       const resolvedOptions = formatter.resolvedOptions();
 
       return resolvedOptions.maximumFractionDigits;
     } catch {
       return 2;
     }
-  }, [currency, locale]);
+  }, [currency]);
 
   const numberFormatter = useMemo(() => {
-    return new Intl.NumberFormat(locale, {
+    return new Intl.NumberFormat(undefined, {
       minimumFractionDigits: currencyFractionDigits,
       maximumFractionDigits: currencyFractionDigits,
     });
-  }, [currencyFractionDigits, locale]);
+  }, [currencyFractionDigits]);
 
   const currencyData = [
     { name: "USD", symbol: "$", label: "US Dollar" },
