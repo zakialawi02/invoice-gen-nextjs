@@ -1,3 +1,7 @@
+"use client";
+
+import { useCallback, useRef } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScanEye } from "lucide-react";
 import { useInvoice } from "./invoice-context";
@@ -7,14 +11,53 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function InvoicePreviewCard({ showPreview = false }: { showPreview?: boolean }) {
   const { invoiceData } = useInvoice();
+  const previewRef = useRef<HTMLDivElement | null>(null);
 
   const subtotal = invoiceData.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const taxAmount = (subtotal * invoiceData.taxRate) / 100;
   const total = subtotal + taxAmount - invoiceData.discount;
 
+  const handleDownload = useCallback(async () => {
+    if (!previewRef.current) {
+      return;
+    }
+
+    const html2canvasModule = await import("html2canvas");
+    const { jsPDF } = await import("jspdf");
+
+    const canvas = await html2canvasModule.default(previewRef.current, {
+      scale: 2,
+      backgroundColor: "#ffffff",
+    });
+
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgProps = pdf.getImageProperties(imgData);
+    const imgWidth = pageWidth;
+    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const filename = `${invoiceData.invoiceNumber || "invoice"}.pdf`;
+    pdf.save(filename);
+  }, [invoiceData.invoiceNumber]);
+
   return (
     <Card className={`w-full ${showPreview ? "md:max-w-1/2" : "hidden"}`}>
-      <CardHeader>
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>
           <span className="mr-2 inline-flex items-center">
             <span className="bg-primary/10 p-2 rounded-full mr-2">
@@ -23,9 +66,15 @@ export default function InvoicePreviewCard({ showPreview = false }: { showPrevie
             Preview
           </span>
         </CardTitle>
+        <Button size="sm" variant="outline" onClick={handleDownload} className="w-full sm:w-auto">
+          Download PDF
+        </Button>
       </CardHeader>
       <CardContent className="p-2">
-        <div className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto">
+        <div
+          ref={previewRef}
+          className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto"
+        >
           {/* Header */}
           <div className="flex justify-between items-start mb-6">
             <div>
