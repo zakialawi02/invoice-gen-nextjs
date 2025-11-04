@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { Suspense } from "react";
 import { Metadata } from "next";
+import Loading from "./loading";
 
 export const metadata: Metadata = {
   title: {
@@ -30,7 +31,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <DashboardSidebar />
         <div className="flex-1 flex flex-col">
           <DashboardNavbar />
-          <Suspense fallback={<div>Loading...</div>}>
+          <Suspense fallback={<Loading />}>
             <main className="flex-1 px-6 py-4 bg-background">{children}</main>
           </Suspense>
         </div>
