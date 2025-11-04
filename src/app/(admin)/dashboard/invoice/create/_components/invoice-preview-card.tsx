@@ -1,12 +1,72 @@
+"use client";
+
+import { useCallback, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScanEye } from "lucide-react";
-import { useInvoice } from "./invoice-context";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getCurrencySymbol } from "@/lib/currency";
 import { format } from "date-fns";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Download, ScanEye } from "lucide-react";
+import { useInvoice } from "./invoice-context";
 
 export default function InvoicePreviewCard({ showPreview = false }: { showPreview?: boolean }) {
   const { invoiceData } = useInvoice();
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadPreview = useCallback(() => {
+    if (isDownloading) return;
+
+    const previewElement = previewRef.current;
+    if (!previewElement) {
+      return;
+    }
+
+    setIsDownloading(true);
+
+    const invoiceTitle = invoiceData.invoiceNumber?.trim() || "invoice-preview";
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1080,height=720");
+
+    if (!printWindow) {
+      setIsDownloading(false);
+      return;
+    }
+
+    printWindow.document.write(`<!DOCTYPE html><html><head>${document.head.innerHTML}</head><body>${
+      previewElement.outerHTML
+    }</body></html>`);
+    printWindow.document.title = invoiceTitle;
+    printWindow.document.close();
+
+    const cleanupTimeout = window.setTimeout(() => {
+      setIsDownloading(false);
+      if (!printWindow.closed) {
+        printWindow.close();
+      }
+    }, 2000);
+
+    const handleAfterPrint = () => {
+      window.clearTimeout(cleanupTimeout);
+      setIsDownloading(false);
+      if (!printWindow.closed) {
+        printWindow.close();
+      }
+      printWindow.removeEventListener("afterprint", handleAfterPrint);
+    };
+
+    printWindow.addEventListener("afterprint", handleAfterPrint);
+
+    const initiatePrint = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+
+    if (printWindow.document.readyState === "complete") {
+      initiatePrint();
+    } else {
+      printWindow.onload = initiatePrint;
+    }
+  }, [invoiceData.invoiceNumber, isDownloading]);
 
   const subtotal = invoiceData.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const taxAmount = (subtotal * invoiceData.taxRate) / 100;
@@ -14,7 +74,7 @@ export default function InvoicePreviewCard({ showPreview = false }: { showPrevie
 
   return (
     <Card className={`w-full ${showPreview ? "md:max-w-1/2" : "hidden"}`}>
-      <CardHeader>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>
           <span className="mr-2 inline-flex items-center">
             <span className="bg-primary/10 p-2 rounded-full mr-2">
@@ -23,9 +83,22 @@ export default function InvoicePreviewCard({ showPreview = false }: { showPrevie
             Preview
           </span>
         </CardTitle>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleDownloadPreview}
+          disabled={isDownloading}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          {isDownloading ? "Preparing..." : "Download Preview"}
+        </Button>
       </CardHeader>
       <CardContent className="p-2">
-        <div className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto">
+        <div
+          ref={previewRef}
+          className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto"
+        >
           {/* Header */}
           <div className="flex justify-between items-start mb-6">
             <div>
