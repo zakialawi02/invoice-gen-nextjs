@@ -225,12 +225,11 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 />
                 <InputCurrency
                   currency={currency}
-                  type="number"
                   name="itemUnitPrice"
                   className="col-span-2"
                   value={item.unitPrice}
-                  onChange={(e) =>
-                    handleItemChange(index, "unitPrice", parseFloat(e.target.value) || 0)
+                  onValueChange={(value) =>
+                    handleItemChange(index, "unitPrice", value === undefined ? 0 : value)
                   }
                 />
                 <Input
@@ -284,8 +283,8 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 id="discount"
                 currency={currency}
                 placeholder="Enter discount amount"
-                onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                 value={discount}
+                onValueChange={(value) => setDiscount(value || 0)}
               />
             </div>
           </div>

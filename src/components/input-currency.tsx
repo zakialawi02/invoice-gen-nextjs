@@ -1,30 +1,72 @@
 "use client";
 
-import * as React from "react";
+import { forwardRef } from "react";
+import { NumericFormat, NumericFormatProps } from "react-number-format";
+
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { getCurrencySymbol } from "@/lib/currency";
 
-type InputCurrencyProps = React.ComponentPropsWithoutRef<typeof Input> & {
+type InputCurrencyProps = {
   currency?: string;
+  value?: number;
+  onValueChange?: (value: number | undefined) => void;
   className?: string;
-};
+  inputClassName?: string;
+  thousandSeparator?: NumericFormatProps["thousandSeparator"];
+} & Omit<
+  NumericFormatProps,
+  | "value"
+  | "onValueChange"
+  | "customInput"
+  | "thousandSeparator"
+  | "prefix"
+  | "suffix"
+>;
 
-export default function InputCurrency({
-  currency = "USD",
-  className,
-  ...props
-}: InputCurrencyProps) {
-  const currencySymbol = getCurrencySymbol(currency);
+const InputCurrency = forwardRef<HTMLInputElement, InputCurrencyProps>(
+  (
+    {
+      currency = "USD",
+      value,
+      onValueChange,
+      className,
+      inputClassName,
+      thousandSeparator = ",",
+      decimalScale = 2,
+      fixedDecimalScale = true,
+      allowNegative = false,
+      ...props
+    },
+    ref,
+  ) => {
+    const currencySymbol = getCurrencySymbol(currency);
 
-  return (
-    <div className={cn("w-full space-y-2", className)}>
-      <div className="relative w-full">
-        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-          <span className="text-muted-foreground text-sm font-medium">{currencySymbol}</span>
-        </div>
-        <Input className="pl-8 w-full" {...props} type="number" step="1" min="0" />
+    return (
+      <div className={cn("relative w-full", className)}>
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+          {currencySymbol}
+        </span>
+        <NumericFormat
+          value={value}
+          onValueChange={(values) => onValueChange?.(values.floatValue)}
+          thousandSeparator={thousandSeparator}
+          decimalScale={decimalScale}
+          fixedDecimalScale={fixedDecimalScale}
+          allowNegative={allowNegative}
+          getInputRef={ref}
+          customInput={Input}
+          className={cn(
+            "pl-8 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+            inputClassName,
+          )}
+          {...props}
+        />
       </div>
-    </div>
-  );
-}
+    );
+  },
+);
+
+InputCurrency.displayName = "InputCurrency";
+
+export default InputCurrency;
