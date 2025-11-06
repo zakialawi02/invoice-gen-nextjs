@@ -24,7 +24,12 @@ const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>
             print-color-adjust: exact;
           }
 
-          .invoice-preview-print {
+          @page {
+            size: A4;
+            margin: 12mm;
+          }
+
+          .invoice-preview-card {
             display: block !important;
             width: 100% !important;
             max-width: 210mm !important;
@@ -35,28 +40,35 @@ const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>
             background: transparent !important;
           }
 
-          .invoice-preview-print.hidden {
+          .invoice-preview-card.hidden {
             display: block !important;
           }
 
-          .invoice-preview-print .preview-container {
+          .invoice-preview-card .invoice-preview-toolbar,
+          .invoice-preview-card .preview-wrapper::before,
+          .invoice-preview-card .preview-wrapper::after {
+            display: none !important;
+          }
+
+          .invoice-preview-card .preview-wrapper {
+            padding: 0 !important;
+            background: transparent !important;
+          }
+
+          .invoice-preview-card .preview-container {
+            margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
             max-width: 100% !important;
           }
 
-          .invoice-preview-print .preview-container table {
-            width: 100%;
-          }
-
-          @page {
-            size: A4;
-            margin: 12mm;
+          .invoice-preview-card .preview-container table {
+            width: 100% !important;
           }
         }
       `}</style>
-      <Card ref={ref} className={`invoice-preview-print w-full ${showPreview ? "md:max-w-1/2" : "hidden"}`}>
-        <CardHeader>
+      <Card className={`invoice-preview-card w-full ${showPreview ? "md:max-w-1/2" : "hidden"}`}>
+        <CardHeader className="invoice-preview-toolbar">
           <CardTitle>
             <span className="mr-2 inline-flex items-center">
               <span className="bg-primary/10 p-2 rounded-full mr-2">
@@ -66,54 +78,57 @@ const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-2">
-          <div className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">INVOICE</h1>
-              <p className="text-gray-600 text-sm">#{invoiceData.invoiceNumber || "INV-001"}</p>
-            </div>
-            <div className="text-right text-gray-600">
-              <Avatar className="bg-gray-600 size-12 ml-auto">
-                <AvatarImage
-                  src="/placeholder-company.png"
-                  className="bg-gray-600"
-                  alt="Company Logo"
-                />
-                <AvatarFallback className="text-sm bg-gray-600 text-black">CN</AvatarFallback>
-              </Avatar>
-              <p className="font-bold mt-1 text-sm">Your Company Name</p>
-              <p className="text-gray-600 text-xs">yourcompany@email.com</p>
-            </div>
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div>
-              <h3 className="font-bold text-gray-900 mb-1 text-sm">Bill To:</h3>
-              <p className="font-medium text-sm">Brightstone Industries</p>
-              <p className="text-gray-600 text-xs">jacobpau@brightstone.industries</p>
-            </div>
-            <div className="text-right">
-              <div className="mb-1">
-                <p className="text-gray-600 text-xs">Date Issued:</p>
-                <p className="font-medium text-sm">
-                  {invoiceData.dateIssued ? format(invoiceData.dateIssued, "PPP") : "N/A"}
-                </p>
-              </div>
+        <CardContent className="preview-wrapper p-2">
+          <div
+            ref={ref}
+            className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto"
+          >
+            {/* Header */}
+            <div className="flex justify-between items-start mb-6">
               <div>
-                <p className="text-gray-600 text-xs">Due Date:</p>
-                <p className="font-medium text-sm">
-                  {invoiceData.dateDue ? format(invoiceData.dateDue, "PPP") : "N/A"}
-                </p>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">INVOICE</h1>
+                <p className="text-gray-600 text-sm">#{invoiceData.invoiceNumber || "INV-001"}</p>
+              </div>
+              <div className="text-right text-gray-600">
+                <Avatar className="bg-gray-600 size-12 ml-auto">
+                  <AvatarImage
+                    src="/placeholder-company.png"
+                    className="bg-gray-600"
+                    alt="Company Logo"
+                  />
+                  <AvatarFallback className="text-sm bg-gray-600 text-black">CN</AvatarFallback>
+                </Avatar>
+                <p className="font-bold mt-1 text-sm">Your Company Name</p>
+                <p className="text-gray-600 text-xs">yourcompany@email.com</p>
               </div>
             </div>
-          </div>
 
-          {/* Items Table */}
-          <div className="mb-6">
-            <table className="w-full text-sm">
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div>
+                <h3 className="font-bold text-gray-900 mb-1 text-sm">Bill To:</h3>
+                <p className="font-medium text-sm">Brightstone Industries</p>
+                <p className="text-gray-600 text-xs">jacobpau@brightstone.industries</p>
+              </div>
+              <div className="text-right">
+                <div className="mb-1">
+                  <p className="text-gray-600 text-xs">Date Issued:</p>
+                  <p className="font-medium text-sm">
+                    {invoiceData.dateIssued ? format(invoiceData.dateIssued, "PPP") : "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-xs">Due Date:</p>
+                  <p className="font-medium text-sm">
+                    {invoiceData.dateDue ? format(invoiceData.dateDue, "PPP") : "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="mb-6">
+              <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="py-2 text-left font-bold text-gray-900">Item</th>
@@ -152,9 +167,9 @@ const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>
             </table>
           </div>
 
-          {/* Totals */}
-          <div className="ml-auto max-w-[200px]">
-            <div className="flex justify-between py-1">
+            {/* Totals */}
+            <div className="ml-auto max-w-[200px]">
+              <div className="flex justify-between py-1">
               <span className="text-gray-600 text-sm">Subtotal:</span>
               <span className="font-medium text-sm">
                 {getCurrencySymbol(invoiceData.currency)}{" "}
@@ -198,23 +213,23 @@ const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>
             </div>
           </div>
 
-          {/* Notes */}
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            {invoiceData.note && (
-              <div className="mb-3">
-                <h3 className="font-bold text-gray-900 mb-1 text-sm">Note:</h3>
-                <p className="text-gray-600 text-sm">{invoiceData.note}</p>
-              </div>
-            )}
-            {invoiceData.terms && (
-              <div>
-                <h3 className="font-bold text-gray-900 mb-1 text-sm">Terms & Conditions:</h3>
-                <p className="text-gray-600 text-sm">{invoiceData.terms}</p>
-              </div>
-            )}
+            {/* Notes */}
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              {invoiceData.note && (
+                <div className="mb-3">
+                  <h3 className="font-bold text-gray-900 mb-1 text-sm">Note:</h3>
+                  <p className="text-gray-600 text-sm">{invoiceData.note}</p>
+                </div>
+              )}
+              {invoiceData.terms && (
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-1 text-sm">Terms & Conditions:</h3>
+                  <p className="text-gray-600 text-sm">{invoiceData.terms}</p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </CardContent>
+        </CardContent>
       </Card>
     </>
   );
