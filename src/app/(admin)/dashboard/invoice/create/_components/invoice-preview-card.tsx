@@ -19,26 +19,20 @@ const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>
         @media print {
           body {
             background: #fff;
+            margin: 0;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
 
-          body * {
-            visibility: hidden;
-          }
-
-          .invoice-preview-print,
-          .invoice-preview-print * {
-            visibility: visible;
-          }
-
           .invoice-preview-print {
-            position: absolute;
-            inset: 0;
-            margin: 0 auto;
-            width: 210mm;
-            max-width: 100%;
-            padding: 0 0 24px 0;
+            display: block !important;
+            width: 100% !important;
+            max-width: 210mm !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: transparent !important;
           }
 
           .invoice-preview-print.hidden {
@@ -48,7 +42,11 @@ const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>
           .invoice-preview-print .preview-container {
             box-shadow: none !important;
             border: none !important;
-            max-width: 100%;
+            max-width: 100% !important;
+          }
+
+          .invoice-preview-print .preview-container table {
+            width: 100%;
           }
 
           @page {
@@ -68,8 +66,8 @@ const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>
             </span>
           </CardTitle>
         </CardHeader>
-      <CardContent className="p-2">
-        <div className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto">
+        <CardContent className="p-2">
+          <div className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto">
           {/* Header */}
           <div className="flex justify-between items-start mb-6">
             <div>

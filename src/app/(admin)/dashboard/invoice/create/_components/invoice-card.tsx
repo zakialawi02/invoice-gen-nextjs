@@ -71,7 +71,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
   const total = subtotal + taxAmount - invoiceData.discount;
 
   return (
-    <Card className={`w-full ${showPreview ? "md:max-w-1/2" : ""}`}>
+    <Card className={`w-full no-print ${showPreview ? "md:max-w-1/2" : ""}`}>
       <CardHeader>
         <CardTitle>
           <span className="mr-2 inline-flex items-center">
