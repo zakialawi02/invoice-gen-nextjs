@@ -4,8 +4,9 @@ import { useInvoice } from "./invoice-context";
 import { getCurrencySymbol } from "@/lib/currency";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { forwardRef } from "react";
 
-export default function InvoicePreviewCard({ showPreview = false }: { showPreview?: boolean }) {
+const InvoicePreviewCard = forwardRef<HTMLDivElement, { showPreview?: boolean }>(({ showPreview = false }, ref) => {
   const { invoiceData } = useInvoice();
 
   const subtotal = invoiceData.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -13,17 +14,60 @@ export default function InvoicePreviewCard({ showPreview = false }: { showPrevie
   const total = subtotal + taxAmount - invoiceData.discount;
 
   return (
-    <Card className={`w-full ${showPreview ? "md:max-w-1/2" : "hidden"}`}>
-      <CardHeader>
-        <CardTitle>
-          <span className="mr-2 inline-flex items-center">
-            <span className="bg-primary/10 p-2 rounded-full mr-2">
-              <ScanEye className="h-4 w-4 text-primary" />
+    <>
+      <style jsx global>{`
+        @media print {
+          body {
+            background: #fff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          body * {
+            visibility: hidden;
+          }
+
+          .invoice-preview-print,
+          .invoice-preview-print * {
+            visibility: visible;
+          }
+
+          .invoice-preview-print {
+            position: absolute;
+            inset: 0;
+            margin: 0 auto;
+            width: 210mm;
+            max-width: 100%;
+            padding: 0 0 24px 0;
+          }
+
+          .invoice-preview-print.hidden {
+            display: block !important;
+          }
+
+          .invoice-preview-print .preview-container {
+            box-shadow: none !important;
+            border: none !important;
+            max-width: 100%;
+          }
+
+          @page {
+            size: A4;
+            margin: 12mm;
+          }
+        }
+      `}</style>
+      <Card ref={ref} className={`invoice-preview-print w-full ${showPreview ? "md:max-w-1/2" : "hidden"}`}>
+        <CardHeader>
+          <CardTitle>
+            <span className="mr-2 inline-flex items-center">
+              <span className="bg-primary/10 p-2 rounded-full mr-2">
+                <ScanEye className="h-4 w-4 text-primary" />
+              </span>
+              Preview
             </span>
-            Preview
-          </span>
-        </CardTitle>
-      </CardHeader>
+          </CardTitle>
+        </CardHeader>
       <CardContent className="p-2">
         <div className="preview-container bg-white text-gray-800 p-4 rounded-lg shadow-md max-w-2xl mx-auto">
           {/* Header */}
@@ -173,6 +217,11 @@ export default function InvoicePreviewCard({ showPreview = false }: { showPrevie
           </div>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+    </>
   );
-}
+});
+
+InvoicePreviewCard.displayName = "InvoicePreviewCard";
+
+export default InvoicePreviewCard;
