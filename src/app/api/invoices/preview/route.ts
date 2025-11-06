@@ -104,13 +104,16 @@ async function createPdf(invoice: PreparedInvoice): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
-  const margin = 40;
+  const margin = 48;
 
   const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  const textColor = rgb(0.18, 0.18, 0.18);
-  const subtextColor = rgb(0.4, 0.4, 0.4);
+  const textColor = rgb(0.149, 0.149, 0.149);
+  const subtextColor = rgb(0.41, 0.41, 0.41);
+  const accentColor = rgb(0.11, 0.36, 0.63);
+  const lightLine = rgb(0.89, 0.91, 0.94);
+  const tableHeaderBg = rgb(0.96, 0.97, 0.99);
 
   let cursorY = height - margin;
 
@@ -118,12 +121,20 @@ async function createPdf(invoice: PreparedInvoice): Promise<Buffer> {
     text: string,
     x: number,
     y: number,
-    options: { size?: number; font?: typeof regularFont; color?: ReturnType<typeof rgb>; align?: "left" | "right" } = {},
+    options: {
+      size?: number;
+      font?: typeof regularFont;
+      color?: ReturnType<typeof rgb>;
+      align?: "left" | "right" | "center";
+    } = {},
   ) => {
     const { size = 12, font = regularFont, color = textColor, align = "left" } = options;
     let drawX = x;
+
     if (align === "right") {
       drawX = x - font.widthOfTextAtSize(text, size);
+    } else if (align === "center") {
+      drawX = x - font.widthOfTextAtSize(text, size) / 2;
     }
 
     page.drawText(text, {
@@ -167,191 +178,205 @@ async function createPdf(invoice: PreparedInvoice): Promise<Buffer> {
     return lines;
   };
 
-  // Header left side
-  drawText("INVOICE", margin, cursorY, { font: boldFont, size: 24 });
-  cursorY -= 28;
-  drawText(`#${invoice.invoiceNumber || "INV-001"}`, margin, cursorY, { color: subtextColor, size: 12 });
+  const drawLabelValue = (
+    label: string,
+    value: string,
+    x: number,
+    y: number,
+    options: { align?: "left" | "right"; labelColor?: ReturnType<typeof rgb> } = {},
+  ) => {
+    const { align = "left", labelColor = subtextColor } = options;
+    drawText(label, x, y, { size: 10, color: labelColor, align });
+    drawText(value, x, y - 14, { size: 12, align });
+  };
 
-  // Header right side (company info)
+  // Header left side
+  drawText("INVOICE", margin, cursorY, { font: boldFont, size: 28 });
+  cursorY -= 34;
+  drawText(`#${invoice.invoiceNumber || "INV-001"}`, margin, cursorY, {
+    color: subtextColor,
+    size: 12,
+  });
+
+  // Header right side (company badge + info)
   const headerRightX = width - margin;
-  drawText(previewCompany.name, headerRightX, height - margin - 4, {
+  const badgeRadius = 26;
+  const badgeCenterX = headerRightX - badgeRadius;
+  const badgeCenterY = height - margin + 6;
+  page.drawEllipse({
+    x: badgeCenterX,
+    y: badgeCenterY,
+    xScale: badgeRadius,
+    yScale: badgeRadius,
+    color: rgb(0.82, 0.85, 0.9),
+  });
+
+  const initials = previewCompany.name
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 2) || "CN";
+
+  drawText(initials, badgeCenterX, badgeCenterY - 9, {
+    font: boldFont,
+    size: 18,
+    align: "center",
+    color: rgb(0.29, 0.32, 0.4),
+  });
+
+  drawText(previewCompany.name, headerRightX, height - margin - 6, {
     font: boldFont,
     size: 12,
-    color: textColor,
     align: "right",
   });
-  drawText(previewCompany.email, headerRightX, height - margin - 20, {
+  drawText(previewCompany.email, headerRightX, height - margin - 22, {
     size: 10,
     color: subtextColor,
     align: "right",
   });
 
-  cursorY -= 52;
+  cursorY -= 60;
 
   // Bill to section
   drawText("Bill To:", margin, cursorY, { font: boldFont, size: 12 });
-  cursorY -= 16;
+  cursorY -= 18;
   drawText(previewRecipient.name, margin, cursorY, { size: 12 });
   cursorY -= 16;
   drawText(previewRecipient.email, margin, cursorY, { size: 10, color: subtextColor });
 
   // Date info on right
-  const dateYStart = height - margin - 64;
-  drawText("Date Issued:", headerRightX, dateYStart, { size: 10, color: subtextColor, align: "right" });
-  drawText(invoice.formattedDates.issued, headerRightX, dateYStart - 14, {
-    size: 12,
-    align: "right",
-  });
-  drawText("Due Date:", headerRightX, dateYStart - 32, { size: 10, color: subtextColor, align: "right" });
-  drawText(invoice.formattedDates.due, headerRightX, dateYStart - 46, {
-    size: 12,
-    align: "right",
-  });
+  const dateSectionY = height - margin - 74;
+  drawLabelValue("Date Issued:", invoice.formattedDates.issued, headerRightX, dateSectionY, { align: "right" });
+  drawLabelValue("Due Date:", invoice.formattedDates.due, headerRightX, dateSectionY - 44, { align: "right" });
 
-  cursorY -= 64;
+  cursorY -= 78;
 
   // Items table header
-  const tableStartY = cursorY;
-  const columnXs = [margin, margin + 250, margin + 320, margin + 420];
+  const columnXs = [margin, margin + 260, margin + 350, width - margin - 10];
 
-  page.drawLine({
-    start: { x: margin, y: tableStartY },
-    end: { x: width - margin, y: tableStartY },
-    thickness: 1,
-    color: rgb(0.85, 0.85, 0.85),
+  page.drawRectangle({
+    x: margin,
+    y: cursorY - 24,
+    width: width - margin * 2,
+    height: 32,
+    color: tableHeaderBg,
   });
 
-  cursorY -= 18;
-  drawText("Item", columnXs[0], cursorY, { font: boldFont, size: 12 });
-  drawText("Qty", columnXs[1], cursorY, { font: boldFont, size: 12, align: "right" });
-  drawText("Price", columnXs[2], cursorY, { font: boldFont, size: 12, align: "right" });
-  drawText("Total", columnXs[3], cursorY, { font: boldFont, size: 12, align: "right" });
+  drawText("Item", columnXs[0], cursorY, { font: boldFont, size: 11 });
+  drawText("Qty", columnXs[1], cursorY, { font: boldFont, size: 11, align: "right" });
+  drawText("Price", columnXs[2], cursorY, { font: boldFont, size: 11, align: "right" });
+  drawText("Total", width - margin, cursorY, { font: boldFont, size: 11, align: "right" });
 
-  cursorY -= 8;
+  cursorY -= 32;
   page.drawLine({
-    start: { x: margin, y: cursorY },
-    end: { x: width - margin, y: cursorY },
+    start: { x: margin, y: cursorY + 6 },
+    end: { x: width - margin, y: cursorY + 6 },
     thickness: 1,
-    color: rgb(0.9, 0.9, 0.9),
+    color: lightLine,
   });
-
-  cursorY -= 10;
 
   invoice.items.forEach((item) => {
-    const rowTopY = cursorY;
-    drawText(item.name, columnXs[0], rowTopY, { size: 12, font: boldFont });
+    const rowTop = cursorY;
+    drawText(item.name, columnXs[0], rowTop - 2, { font: boldFont, size: 11 });
 
-    let rowHeight = 24;
+    let rowHeight = 20;
 
     if (item.description) {
       const descriptionLines = wrapText(item.description, {
-        font: regularFont,
         size: 10,
-        maxWidth: columnXs[1] - columnXs[0] - 16,
+        maxWidth: columnXs[1] - columnXs[0] - 12,
       });
       descriptionLines.forEach((line, index) => {
-        drawText(line, columnXs[0], rowTopY - 14 - index * 12, { size: 10, color: subtextColor });
+        drawText(line, columnXs[0], rowTop - 16 - index * 12, { size: 10, color: subtextColor });
       });
-      rowHeight = Math.max(rowHeight, 24 + descriptionLines.length * 12);
+      rowHeight = Math.max(rowHeight, 20 + descriptionLines.length * 12);
     }
 
-    drawText(String(item.quantity), columnXs[1], rowTopY, { size: 12, align: "right" });
-    drawText(formatCurrency(item.unitPrice, invoice.currency), columnXs[2], rowTopY, {
-      size: 12,
+    drawText(String(item.quantity), columnXs[1], rowTop - 2, { size: 11, align: "right", color: subtextColor });
+    drawText(formatCurrency(item.unitPrice, invoice.currency), columnXs[2], rowTop - 2, {
+      size: 11,
       align: "right",
+      color: subtextColor,
     });
-    drawText(formatCurrency(item.quantity * item.unitPrice, invoice.currency), columnXs[3], rowTopY, {
-      size: 12,
+    drawText(formatCurrency(item.quantity * item.unitPrice, invoice.currency), width - margin, rowTop - 2, {
+      size: 11,
       align: "right",
     });
 
-    cursorY -= rowHeight;
-
+    cursorY -= rowHeight + 12;
     page.drawLine({
-      start: { x: margin, y: cursorY + 8 },
-      end: { x: width - margin, y: cursorY + 8 },
+      start: { x: margin, y: cursorY + 6 },
+      end: { x: width - margin, y: cursorY + 6 },
       thickness: 1,
-      color: rgb(0.95, 0.95, 0.95),
+      color: lightLine,
     });
   });
 
-  // Totals section
-  const totalsX = width - margin;
-  cursorY -= 10;
+  cursorY -= 14;
 
+  // Totals section
+  const totalsLabelX = width - margin - 140;
+  const totalsValueX = width - margin;
   const totals = [
-    { label: "Subtotal:", value: formatCurrency(invoice.totals.subtotal, invoice.currency), emphasize: false },
-    {
-      label: `Tax (${invoice.taxRate}%):`,
-      value: formatCurrency(invoice.totals.taxAmount, invoice.currency),
-      emphasize: false,
-    },
+    { label: "Subtotal:", value: formatCurrency(invoice.totals.subtotal, invoice.currency) },
+    { label: `Tax (${invoice.taxRate}%):`, value: formatCurrency(invoice.totals.taxAmount, invoice.currency) },
   ];
 
   if (invoice.discount > 0) {
-    totals.push({
-      label: "Discount:",
-      value: `- ${formatCurrency(invoice.discount, invoice.currency)}`,
-      emphasize: false,
-    });
+    totals.push({ label: "Discount:", value: `- ${formatCurrency(invoice.discount, invoice.currency)}` });
   }
 
-  totals.push({
-    label: "Total:",
-    value: formatCurrency(invoice.totals.total, invoice.currency),
-    emphasize: true,
-  });
-
   totals.forEach((line) => {
-    if (line.emphasize) {
-      page.drawLine({
-        start: { x: totalsX - 180, y: cursorY + 14 },
-        end: { x: totalsX, y: cursorY + 14 },
-        thickness: 1,
-        color: rgb(0.85, 0.85, 0.85),
-      });
-    }
-
-    drawText(line.label, totalsX - 100, cursorY, {
-      size: line.emphasize ? 14 : 12,
-      font: line.emphasize ? boldFont : regularFont,
-      color: line.emphasize ? textColor : subtextColor,
-      align: "right",
-    });
-    drawText(line.value, totalsX, cursorY, {
-      size: line.emphasize ? 14 : 12,
-      font: boldFont,
-      align: "right",
-      color: textColor,
-    });
-
-    cursorY -= line.emphasize ? 28 : 20;
+    drawText(line.label, totalsLabelX, cursorY, { size: 11, align: "right", color: subtextColor });
+    drawText(line.value, totalsValueX, cursorY, { size: 11, align: "right" });
+    cursorY -= 20;
   });
+
+  page.drawLine({
+    start: { x: totalsLabelX, y: cursorY + 12 },
+    end: { x: totalsValueX, y: cursorY + 12 },
+    thickness: 1.2,
+    color: lightLine,
+  });
+  cursorY -= 20;
+
+  drawText("Total:", totalsLabelX, cursorY, {
+    size: 16,
+    font: boldFont,
+    align: "right",
+  });
+  drawText(formatCurrency(invoice.totals.total, invoice.currency), totalsValueX, cursorY, {
+    size: 16,
+    font: boldFont,
+    align: "right",
+    color: accentColor,
+  });
+
+  cursorY -= 36;
 
   // Notes and terms
-  cursorY -= 10;
+  const sectionWidth = width - margin * 2;
 
   if (invoice.note) {
     drawText("Note:", margin, cursorY, { font: boldFont, size: 12 });
-    cursorY -= 16;
+    cursorY -= 18;
     const noteLines = wrapText(invoice.note, {
-      font: regularFont,
       size: 11,
-      maxWidth: width - margin * 2,
+      maxWidth: sectionWidth,
     });
     noteLines.forEach((line, index) => {
       drawText(line, margin, cursorY - index * 14, { size: 11, color: subtextColor });
     });
-    cursorY -= noteLines.length * 14 + 10;
+    cursorY -= noteLines.length * 14 + 18;
   }
 
   if (invoice.terms) {
     drawText("Terms & Conditions:", margin, cursorY, { font: boldFont, size: 12 });
-    cursorY -= 16;
+    cursorY -= 18;
     const termsLines = wrapText(invoice.terms, {
-      font: regularFont,
       size: 11,
-      maxWidth: width - margin * 2,
+      maxWidth: sectionWidth,
     });
     termsLines.forEach((line, index) => {
       drawText(line, margin, cursorY - index * 14, { size: 11, color: subtextColor });
