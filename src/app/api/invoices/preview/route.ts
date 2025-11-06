@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrencySymbol } from "@/lib/currency";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 type InvoiceItem = {
   name: string;
@@ -20,9 +21,27 @@ type InvoicePayload = {
   terms?: string;
 };
 
-function escapePdfText(input: string): string {
-  return input.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-}
+type PreparedInvoice = Required<InvoicePayload> & {
+  totals: {
+    subtotal: number;
+    taxAmount: number;
+    total: number;
+  };
+  formattedDates: {
+    issued: string;
+    due: string;
+  };
+};
+
+const previewCompany = {
+  name: "Your Company Name",
+  email: "yourcompany@email.com",
+};
+
+const previewRecipient = {
+  name: "Brightstone Industries",
+  email: "jacobpau@brightstone.industries",
+};
 
 function formatCurrency(value: number, currency: string): string {
   return `${getCurrencySymbol(currency)} ${new Intl.NumberFormat("en-US", {
@@ -31,149 +50,316 @@ function formatCurrency(value: number, currency: string): string {
   }).format(value)}`;
 }
 
-function buildInvoiceContent(invoice: Required<InvoicePayload>): string {
-  const subtotal = invoice.items.reduce((total, item) => total + item.quantity * item.unitPrice, 0);
-  const taxAmount = (subtotal * invoice.taxRate) / 100;
-  const total = subtotal + taxAmount - invoice.discount;
+function formatDate(value: string | null | undefined): string {
+  if (!value) {
+    return "N/A";
+  }
 
-  const issuedDate = invoice.dateIssued
-    ? new Date(invoice.dateIssued).toLocaleDateString(undefined, {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
 
-  const dueDate = invoice.dateDue
-    ? new Date(invoice.dateDue).toLocaleDateString(undefined, {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : "N/A";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
 
-  const lines: string[] = [
-    "BT",
-    "/F1 20 Tf",
-    "72 800 Td",
-    `(${escapePdfText("INVOICE")}) Tj`,
-    "/F1 12 Tf",
-    "0 -28 Td",
-    `(${escapePdfText(`Invoice Number: ${invoice.invoiceNumber || "INV-001"}`)}) Tj`,
-    "0 -16 Td",
-    `(${escapePdfText(`Date Issued: ${issuedDate}`)}) Tj`,
-    "0 -16 Td",
-    `(${escapePdfText(`Due Date: ${dueDate}`)}) Tj`,
-    "0 -24 Td",
-    "/F1 14 Tf",
-    `(${escapePdfText("Bill To")}) Tj`,
-    "/F1 12 Tf",
-    "0 -18 Td",
-    `(${escapePdfText("Brightstone Industries")}) Tj`,
-    "0 -16 Td",
-    `(${escapePdfText("jacobpau@brightstone.industries")}) Tj`,
-    "0 -24 Td",
-    "/F1 14 Tf",
-    `(${escapePdfText("Items")}) Tj`,
-    "/F1 12 Tf",
-  ];
+function withDefaults(payload: InvoicePayload): PreparedInvoice {
+  const invoiceNumber = payload.invoiceNumber ?? "INV-001";
+  const dateIssued = payload.dateIssued ?? null;
+  const dateDue = payload.dateDue ?? null;
+  const currency = payload.currency ?? "USD";
+  const items = payload.items ?? [];
+  const taxRate = payload.taxRate ?? 0;
+  const discount = payload.discount ?? 0;
+  const note = payload.note ?? "";
+  const terms = payload.terms ?? "";
 
-  invoice.items.forEach((item) => {
-    lines.push("0 -18 Td");
-    lines.push(
-      `(${escapePdfText(`${item.quantity} x ${item.name} @ ${formatCurrency(item.unitPrice, invoice.currency)}`)}) Tj`,
-    );
-    lines.push(
-      `(${escapePdfText(`Total: ${formatCurrency(item.quantity * item.unitPrice, invoice.currency)}`)}) Tj`,
-    );
-    if (item.description) {
-      lines.push("0 -16 Td");
-      lines.push(`(${escapePdfText(item.description)}) Tj`);
+  const subtotal = items.reduce((total, item) => total + item.quantity * item.unitPrice, 0);
+  const taxAmount = (subtotal * taxRate) / 100;
+  const total = subtotal + taxAmount - discount;
+
+  return {
+    invoiceNumber,
+    dateIssued,
+    dateDue,
+    currency,
+    items,
+    taxRate,
+    discount,
+    note,
+    terms,
+    totals: { subtotal, taxAmount, total },
+    formattedDates: {
+      issued: formatDate(dateIssued),
+      due: formatDate(dateDue),
+    },
+  };
+}
+
+async function createPdf(invoice: PreparedInvoice): Promise<Buffer> {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const { width, height } = page.getSize();
+  const margin = 40;
+
+  const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const textColor = rgb(0.18, 0.18, 0.18);
+  const subtextColor = rgb(0.4, 0.4, 0.4);
+
+  let cursorY = height - margin;
+
+  const drawText = (
+    text: string,
+    x: number,
+    y: number,
+    options: { size?: number; font?: typeof regularFont; color?: ReturnType<typeof rgb>; align?: "left" | "right" } = {},
+  ) => {
+    const { size = 12, font = regularFont, color = textColor, align = "left" } = options;
+    let drawX = x;
+    if (align === "right") {
+      drawX = x - font.widthOfTextAtSize(text, size);
     }
+
+    page.drawText(text, {
+      x: drawX,
+      y,
+      size,
+      font,
+      color,
+    });
+  };
+
+  const wrapText = (
+    text: string,
+    options: { font?: typeof regularFont; size?: number; maxWidth: number },
+  ): string[] => {
+    const { font = regularFont, size = 12, maxWidth } = options;
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    const words = trimmed.split(/\s+/);
+    const lines: string[] = [];
+    let currentLine = "";
+
+    words.forEach((word) => {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = font.widthOfTextAtSize(testLine, size);
+      if (testWidth > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    });
+
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    return lines;
+  };
+
+  // Header left side
+  drawText("INVOICE", margin, cursorY, { font: boldFont, size: 24 });
+  cursorY -= 28;
+  drawText(`#${invoice.invoiceNumber || "INV-001"}`, margin, cursorY, { color: subtextColor, size: 12 });
+
+  // Header right side (company info)
+  const headerRightX = width - margin;
+  drawText(previewCompany.name, headerRightX, height - margin - 4, {
+    font: boldFont,
+    size: 12,
+    color: textColor,
+    align: "right",
+  });
+  drawText(previewCompany.email, headerRightX, height - margin - 20, {
+    size: 10,
+    color: subtextColor,
+    align: "right",
   });
 
-  lines.push("0 -24 Td");
-  lines.push("/F1 14 Tf");
-  lines.push(`(${escapePdfText("Summary")}) Tj`);
-  lines.push("/F1 12 Tf");
-  lines.push("0 -18 Td");
-  lines.push(`(${escapePdfText(`Subtotal: ${formatCurrency(subtotal, invoice.currency)}`)}) Tj`);
-  lines.push("0 -16 Td");
-  lines.push(`(${escapePdfText(`Tax (${invoice.taxRate}%): ${formatCurrency(taxAmount, invoice.currency)}`)}) Tj`);
+  cursorY -= 52;
+
+  // Bill to section
+  drawText("Bill To:", margin, cursorY, { font: boldFont, size: 12 });
+  cursorY -= 16;
+  drawText(previewRecipient.name, margin, cursorY, { size: 12 });
+  cursorY -= 16;
+  drawText(previewRecipient.email, margin, cursorY, { size: 10, color: subtextColor });
+
+  // Date info on right
+  const dateYStart = height - margin - 64;
+  drawText("Date Issued:", headerRightX, dateYStart, { size: 10, color: subtextColor, align: "right" });
+  drawText(invoice.formattedDates.issued, headerRightX, dateYStart - 14, {
+    size: 12,
+    align: "right",
+  });
+  drawText("Due Date:", headerRightX, dateYStart - 32, { size: 10, color: subtextColor, align: "right" });
+  drawText(invoice.formattedDates.due, headerRightX, dateYStart - 46, {
+    size: 12,
+    align: "right",
+  });
+
+  cursorY -= 64;
+
+  // Items table header
+  const tableStartY = cursorY;
+  const columnXs = [margin, margin + 250, margin + 320, margin + 420];
+
+  page.drawLine({
+    start: { x: margin, y: tableStartY },
+    end: { x: width - margin, y: tableStartY },
+    thickness: 1,
+    color: rgb(0.85, 0.85, 0.85),
+  });
+
+  cursorY -= 18;
+  drawText("Item", columnXs[0], cursorY, { font: boldFont, size: 12 });
+  drawText("Qty", columnXs[1], cursorY, { font: boldFont, size: 12, align: "right" });
+  drawText("Price", columnXs[2], cursorY, { font: boldFont, size: 12, align: "right" });
+  drawText("Total", columnXs[3], cursorY, { font: boldFont, size: 12, align: "right" });
+
+  cursorY -= 8;
+  page.drawLine({
+    start: { x: margin, y: cursorY },
+    end: { x: width - margin, y: cursorY },
+    thickness: 1,
+    color: rgb(0.9, 0.9, 0.9),
+  });
+
+  cursorY -= 10;
+
+  invoice.items.forEach((item) => {
+    const rowTopY = cursorY;
+    drawText(item.name, columnXs[0], rowTopY, { size: 12, font: boldFont });
+
+    let rowHeight = 24;
+
+    if (item.description) {
+      const descriptionLines = wrapText(item.description, {
+        font: regularFont,
+        size: 10,
+        maxWidth: columnXs[1] - columnXs[0] - 16,
+      });
+      descriptionLines.forEach((line, index) => {
+        drawText(line, columnXs[0], rowTopY - 14 - index * 12, { size: 10, color: subtextColor });
+      });
+      rowHeight = Math.max(rowHeight, 24 + descriptionLines.length * 12);
+    }
+
+    drawText(String(item.quantity), columnXs[1], rowTopY, { size: 12, align: "right" });
+    drawText(formatCurrency(item.unitPrice, invoice.currency), columnXs[2], rowTopY, {
+      size: 12,
+      align: "right",
+    });
+    drawText(formatCurrency(item.quantity * item.unitPrice, invoice.currency), columnXs[3], rowTopY, {
+      size: 12,
+      align: "right",
+    });
+
+    cursorY -= rowHeight;
+
+    page.drawLine({
+      start: { x: margin, y: cursorY + 8 },
+      end: { x: width - margin, y: cursorY + 8 },
+      thickness: 1,
+      color: rgb(0.95, 0.95, 0.95),
+    });
+  });
+
+  // Totals section
+  const totalsX = width - margin;
+  cursorY -= 10;
+
+  const totals = [
+    { label: "Subtotal:", value: formatCurrency(invoice.totals.subtotal, invoice.currency), emphasize: false },
+    {
+      label: `Tax (${invoice.taxRate}%):`,
+      value: formatCurrency(invoice.totals.taxAmount, invoice.currency),
+      emphasize: false,
+    },
+  ];
+
   if (invoice.discount > 0) {
-    lines.push("0 -16 Td");
-    lines.push(`(${escapePdfText(`Discount: ${formatCurrency(invoice.discount, invoice.currency)}`)}) Tj`);
+    totals.push({
+      label: "Discount:",
+      value: `- ${formatCurrency(invoice.discount, invoice.currency)}`,
+      emphasize: false,
+    });
   }
-  lines.push("0 -16 Td");
-  lines.push(`(${escapePdfText(`Total: ${formatCurrency(total, invoice.currency)}`)}) Tj`);
+
+  totals.push({
+    label: "Total:",
+    value: formatCurrency(invoice.totals.total, invoice.currency),
+    emphasize: true,
+  });
+
+  totals.forEach((line) => {
+    if (line.emphasize) {
+      page.drawLine({
+        start: { x: totalsX - 180, y: cursorY + 14 },
+        end: { x: totalsX, y: cursorY + 14 },
+        thickness: 1,
+        color: rgb(0.85, 0.85, 0.85),
+      });
+    }
+
+    drawText(line.label, totalsX - 100, cursorY, {
+      size: line.emphasize ? 14 : 12,
+      font: line.emphasize ? boldFont : regularFont,
+      color: line.emphasize ? textColor : subtextColor,
+      align: "right",
+    });
+    drawText(line.value, totalsX, cursorY, {
+      size: line.emphasize ? 14 : 12,
+      font: boldFont,
+      align: "right",
+      color: textColor,
+    });
+
+    cursorY -= line.emphasize ? 28 : 20;
+  });
+
+  // Notes and terms
+  cursorY -= 10;
 
   if (invoice.note) {
-    lines.push("0 -24 Td");
-    lines.push("/F1 14 Tf");
-    lines.push(`(${escapePdfText("Note")}) Tj`);
-    lines.push("/F1 12 Tf");
-    lines.push("0 -18 Td");
-    lines.push(`(${escapePdfText(invoice.note)}) Tj`);
+    drawText("Note:", margin, cursorY, { font: boldFont, size: 12 });
+    cursorY -= 16;
+    const noteLines = wrapText(invoice.note, {
+      font: regularFont,
+      size: 11,
+      maxWidth: width - margin * 2,
+    });
+    noteLines.forEach((line, index) => {
+      drawText(line, margin, cursorY - index * 14, { size: 11, color: subtextColor });
+    });
+    cursorY -= noteLines.length * 14 + 10;
   }
 
   if (invoice.terms) {
-    lines.push("0 -24 Td");
-    lines.push("/F1 14 Tf");
-    lines.push(`(${escapePdfText("Terms & Conditions")}) Tj`);
-    lines.push("/F1 12 Tf");
-    lines.push("0 -18 Td");
-    lines.push(`(${escapePdfText(invoice.terms)}) Tj`);
+    drawText("Terms & Conditions:", margin, cursorY, { font: boldFont, size: 12 });
+    cursorY -= 16;
+    const termsLines = wrapText(invoice.terms, {
+      font: regularFont,
+      size: 11,
+      maxWidth: width - margin * 2,
+    });
+    termsLines.forEach((line, index) => {
+      drawText(line, margin, cursorY - index * 14, { size: 11, color: subtextColor });
+    });
   }
 
-  lines.push("ET");
-  return lines.join("\n");
-}
-
-function createPdf(invoice: Required<InvoicePayload>): Buffer {
-  const content = buildInvoiceContent(invoice);
-  const contentLength = Buffer.byteLength(content, "utf8");
-
-  let pdf = "%PDF-1.4\n";
-  const offsets: number[] = [];
-
-  const addObject = (objectContent: string) => {
-    offsets.push(Buffer.byteLength(pdf, "utf8"));
-    const objectIndex = offsets.length;
-    pdf += `${objectIndex} 0 obj\n${objectContent}\nendobj\n`;
-  };
-
-  addObject("<< /Type /Catalog /Pages 2 0 R >>");
-  addObject("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-  addObject(
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-  );
-  addObject(`<< /Length ${contentLength} >>\nstream\n${content}\nendstream`);
-  addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
-
-  const xrefOffset = Buffer.byteLength(pdf, "utf8");
-  let xref = `xref\n0 ${offsets.length + 1}\n`;
-  xref += "0000000000 65535 f \n";
-  offsets.forEach((offset) => {
-    xref += `${offset.toString().padStart(10, "0")} 00000 n \n`;
-  });
-
-  const trailer = `trailer\n<< /Size ${offsets.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  const pdfContent = pdf + xref + trailer;
-  return Buffer.from(pdfContent, "utf8");
-}
-
-function withDefaults(payload: InvoicePayload): Required<InvoicePayload> {
-  return {
-    invoiceNumber: payload.invoiceNumber ?? "INV-001",
-    dateIssued: payload.dateIssued ?? null,
-    dateDue: payload.dateDue ?? null,
-    currency: payload.currency ?? "USD",
-    items: payload.items ?? [],
-    taxRate: payload.taxRate ?? 0,
-    discount: payload.discount ?? 0,
-    note: payload.note ?? "",
-    terms: payload.terms ?? "",
-  };
+  const pdfBytes = await pdfDoc.save();
+  return Buffer.from(pdfBytes);
 }
 
 export async function POST(request: Request) {
@@ -190,7 +376,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invoice requires at least one item" }, { status: 400 });
     }
 
-    const pdfBuffer = createPdf(preparedInvoice);
+    const pdfBuffer = await createPdf(preparedInvoice);
 
     return new Response(pdfBuffer, {
       status: 200,
