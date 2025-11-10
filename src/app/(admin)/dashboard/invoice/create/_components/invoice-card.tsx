@@ -17,54 +17,50 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import InputCurrency from "@/components/input-currency";
-import { getCurrencySymbol } from "@/lib/currency";
+import { formatCurrency, getCurrencySymbol } from "@/lib/currency";
 import { Textarea } from "@/components/ui/textarea";
 import { InputNumber } from "@/components/input-number";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useInvoice } from "./invoice-context";
+import { InvoiceData, InvoiceItem } from "@/types/invoice";
 
-type InvoiceItem = {
-  name: string;
-  description?: string | null;
-  quantity: number;
-  unitPrice: number;
-};
+interface InvoiceFormProps {
+  invoiceData: InvoiceData;
+  onDataChange: <T extends keyof InvoiceData>(field: T, value: InvoiceData[T]) => void;
+  onItemChange: <T extends keyof InvoiceItem>(
+    index: number,
+    field: T,
+    value: InvoiceItem[T],
+  ) => void;
+  onAddItem: () => void;
+  onRemoveItem: (index: number) => void;
+  showPreview?: boolean;
+}
 
-export default function InvoiceCard({ showPreview = false }: { showPreview?: boolean }) {
-  const { invoiceData, updateInvoiceData } = useInvoice();
-
+export default function InvoiceCard({
+  invoiceData,
+  onDataChange,
+  onItemChange,
+  onAddItem,
+  onRemoveItem,
+  showPreview = false,
+}: InvoiceFormProps) {
   const [tabSection, setTabSection] = useState<string>("general");
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
+  };
 
   const currencyData = [
-    { name: "USD", symbol: "$", label: "US Dollar" },
-    { name: "EUR", symbol: "€", label: "Euro" },
-    { name: "IDR", symbol: "Rp", label: "Indonesian Rupiah" },
-    { name: "JPY", symbol: "¥", label: "Japanese Yen" },
-    { name: "SGD", symbol: "$", label: "Singapore Dollar" },
+    { name: "USD", label: "US Dollar" },
+    { name: "EUR", label: "Euro" },
+    { name: "IDR", label: "Indonesian Rupiah" },
+    { name: "JPY", label: "Japanese Yen" },
+    { name: "SGD", label: "Singapore Dollar" },
   ];
-
-  const handleAddItem = (): void => {
-    updateInvoiceData({
-      items: [...invoiceData.items, { name: "", description: null, quantity: 1, unitPrice: 0 }],
-    });
-  };
-
-  const handleRemoveItem = (index: number): void => {
-    updateInvoiceData({
-      items: invoiceData.items.filter((_, i) => i !== index),
-    });
-  };
-
-  const handleItemChange = (
-    index: number,
-    field: keyof InvoiceItem,
-    value: string | number,
-  ): void => {
-    const updatedItems = [...invoiceData.items];
-    updatedItems[index] = { ...updatedItems[index], [field]: value };
-    updateInvoiceData({ items: updatedItems });
-  };
 
   const subtotal = invoiceData.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const taxAmount = (subtotal * invoiceData.taxRate) / 100;
@@ -120,7 +116,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <div className="flex items-start gap-3 border p-3 rounded-lg bg-muted/30">
                 <Avatar className="size-12">
                   <AvatarImage src="/placeholder-company.png" alt="Company Logo" />
-                  <AvatarFallback className="text-xs">CN</AvatarFallback>
+                  <AvatarFallback>{getInitials(invoiceData.companyName)}</AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="font-medium">Your Company Name</p>
@@ -146,23 +142,22 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 id="invoiceNumber"
                 placeholder="ZKDEV_ _ _ _ _ _ _ _ _ _ _"
                 value={invoiceData.invoiceNumber}
-                onChange={(e) => updateInvoiceData({ invoiceNumber: e.target.value })}
+                onChange={(e) => onDataChange("invoiceNumber", e.target.value)}
               />
             </div>
 
             <div className="flex w-full flex-col md:flex-row gap-3 space-y-2">
               <div className="space-y-2 w-full">
-                <Label htmlFor="dateIssued">Date Issued</Label>
+                <Label htmlFor="dateIssued">Date of Issue</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      data-empty={!invoiceData.dateIssued}
                       className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon />
-                      {invoiceData.dateIssued ? (
-                        format(invoiceData.dateIssued, "PPP")
+                      {invoiceData.invoiceDate ? (
+                        format(invoiceData.invoiceDate, "PPP")
                       ) : (
                         <span>Pick a date</span>
                       )}
@@ -172,10 +167,8 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                     <Calendar
                       id="dateIssued"
                       mode="single"
-                      selected={invoiceData.dateIssued}
-                      onSelect={(selectedDate) =>
-                        selectedDate && updateInvoiceData({ dateIssued: selectedDate })
-                      }
+                      selected={invoiceData.invoiceDate}
+                      onSelect={(date) => onDataChange("invoiceDate", date)}
                       initialFocus
                     />
                   </PopoverContent>
@@ -187,12 +180,11 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      data-empty={!invoiceData.dateDue}
                       className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon />
-                      {invoiceData.dateDue ? (
-                        format(invoiceData.dateDue, "PPP")
+                      {invoiceData.dueDate ? (
+                        format(invoiceData.dueDate, "PPP")
                       ) : (
                         <span>Pick a date</span>
                       )}
@@ -202,8 +194,8 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                     <Calendar
                       id="dateDue"
                       mode="single"
-                      selected={invoiceData.dateDue}
-                      onSelect={(date) => updateInvoiceData({ dateDue: date || undefined })}
+                      selected={invoiceData.dueDate}
+                      onSelect={(date) => onDataChange("dueDate", date)}
                       initialFocus
                     />
                   </PopoverContent>
@@ -236,8 +228,9 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                 <Label htmlFor="invoiceItems">Invoice Items/Service</Label>
                 <Select
+                  defaultValue={invoiceData.currency}
                   value={invoiceData.currency}
-                  onValueChange={(value) => updateInvoiceData({ currency: value })}
+                  onValueChange={(value) => onDataChange("currency", value)}
                 >
                   <SelectTrigger className="w-full md:w-50">
                     <SelectValue placeholder="Currency" />
@@ -245,7 +238,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                   <SelectContent>
                     {currencyData.map((value, index) => (
                       <SelectItem key={index} value={value.name}>
-                        ({value.symbol}) {value.label}
+                        {value.name} - {value.label} ({getCurrencySymbol(value.name)})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -283,14 +276,14 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                       type="text"
                       name="itemName"
                       placeholder="Item name"
-                      value={item.name}
-                      onChange={(e) => handleItemChange(index, "name", e.target.value)}
+                      value={item.itemName}
+                      onChange={(e) => onItemChange(index, "itemName", e.target.value)}
                     />
                     <Textarea
                       name="itemDescription"
                       placeholder="Description"
                       value={item.description ?? ""}
-                      onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                      onChange={(e) => onItemChange(index, "description", e.target.value)}
                       className="min-h-16"
                     />
                   </div>
@@ -299,7 +292,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                       className="w-full"
                       value={item.quantity}
                       min={0}
-                      onValueChange={(value) => handleItemChange(index, "quantity", value || 0)}
+                      onValueChange={(value) => onItemChange(index, "quantity", value || 0)}
                     />
                   </div>
                   <div className="col-span-6 md:col-span-2">
@@ -308,9 +301,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                       name="itemUnitPrice"
                       className="w-full"
                       value={item.unitPrice}
-                      onValueChange={(value) =>
-                        handleItemChange(index, "unitPrice", value === undefined ? 0 : value)
-                      }
+                      onValueChange={(value) => onItemChange(index, "unitPrice", value || 0)}
                     />
                   </div>
                   <div className="col-span-6 md:col-span-2">
@@ -330,7 +321,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                       variant="ghost"
                       size="sm"
                       className="hover:text-error hover:bg-error/20 h-8 w-8"
-                      onClick={() => handleRemoveItem(index)}
+                      onClick={() => onRemoveItem(index)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -338,7 +329,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 </div>
               ))}
 
-              <Button type="button" variant="outline" className="w-full" onClick={handleAddItem}>
+              <Button type="button" variant="outline" className="w-full" onClick={onAddItem}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
               </Button>
             </div>
@@ -349,7 +340,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 <Label htmlFor="taxRate">Tax Percentage</Label>
                 <Select
                   value={invoiceData.taxRate.toString()}
-                  onValueChange={(value) => updateInvoiceData({ taxRate: parseInt(value) })}
+                  onValueChange={(value) => onDataChange("taxRate", parseInt(value))}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select tax" />
@@ -368,7 +359,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                   currency={invoiceData.currency}
                   placeholder="Enter discount amount"
                   value={invoiceData.discount}
-                  onValueChange={(value) => updateInvoiceData({ discount: value || 0 })}
+                  onValueChange={(value) => onDataChange("discount", value || 0)}
                 />
               </div>
             </div>
@@ -378,8 +369,8 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <Textarea
                 name="note"
                 placeholder="Note"
-                value={invoiceData.note}
-                onChange={(e) => updateInvoiceData({ note: e.target.value })}
+                value={invoiceData.notes}
+                onChange={(e) => onDataChange("notes", e.target.value)}
                 className="min-h-16"
               />
             </div>
@@ -389,8 +380,8 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <Textarea
                 name="anotherNote"
                 placeholder="Terms & Conditions"
-                value={invoiceData.terms}
-                onChange={(e) => updateInvoiceData({ terms: e.target.value })}
+                value={invoiceData.additionalInfo}
+                onChange={(e) => onDataChange("additionalInfo", e.target.value)}
                 className="min-h-16"
               />
             </div>
@@ -400,22 +391,14 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <div className="flex justify-between items-center py-2">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">
-                  {getCurrencySymbol(invoiceData.currency)}{" "}
-                  {new Intl.NumberFormat("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  }).format(subtotal)}
+                  {formatCurrency(subtotal, invoiceData.currency)}
                 </span>
               </div>
 
               <div className="flex justify-between items-center py-2">
                 <span className="text-muted-foreground">Tax ({invoiceData.taxRate}%)</span>
                 <span className="font-medium">
-                  {getCurrencySymbol(invoiceData.currency)}{" "}
-                  {new Intl.NumberFormat("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  }).format(taxAmount)}
+                  {formatCurrency(taxAmount, invoiceData.currency)}
                 </span>
               </div>
 
@@ -423,11 +406,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
                 <div className="flex justify-between items-center py-2 text-error">
                   <span className="text-muted-foreground">Discount</span>
                   <span className="font-medium">
-                    - {getCurrencySymbol(invoiceData.currency)}{" "}
-                    {new Intl.NumberFormat("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(invoiceData.discount)}
+                    - {formatCurrency(invoiceData.discount, invoiceData.currency)}
                   </span>
                 </div>
               )}
@@ -435,11 +414,7 @@ export default function InvoiceCard({ showPreview = false }: { showPreview?: boo
               <div className="flex justify-between items-center pt-4 border-t border-border">
                 <span className="text-lg font-semibold">Total</span>
                 <span className="text-xl font-bold">
-                  {getCurrencySymbol(invoiceData.currency)}{" "}
-                  {new Intl.NumberFormat("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  }).format(total)}
+                  {formatCurrency(total, invoiceData.currency)}
                 </span>
               </div>
             </div>

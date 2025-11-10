@@ -21,6 +21,9 @@ import {
   Settings,
   HelpCircle,
   ArrowLeftRight,
+  ShoppingBag,
+  UserStar,
+  BriefcaseBusiness,
 } from "lucide-react";
 
 const menuItems = [
@@ -35,6 +38,11 @@ const menuItems = [
     icon: ReceiptText,
   },
   {
+    title: "Item Data",
+    url: "/dashboard/item",
+    icon: ShoppingBag,
+  },
+  {
     title: "Transactions",
     url: "/dashboard/transactions",
     icon: ArrowLeftRight,
@@ -47,6 +55,16 @@ const menuItems = [
 ];
 
 const referenceItems = [
+  {
+    title: "My Company Data",
+    url: "/dashboard/my-company",
+    icon: BriefcaseBusiness,
+  },
+  {
+    title: "Customer Data",
+    url: "/dashboard/customer",
+    icon: UserStar,
+  },
   {
     title: "Settings",
     url: "/dashboard/settings",

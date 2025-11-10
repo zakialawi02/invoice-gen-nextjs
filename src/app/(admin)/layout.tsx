@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { Suspense } from "react";
 import { Metadata } from "next";
 import Loading from "./loading";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: {
@@ -33,6 +34,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <DashboardNavbar />
           <Suspense fallback={<Loading />}>
             <main className="flex-1 px-6 py-4 bg-background">{children}</main>
+            <Toaster />
           </Suspense>
         </div>
       </div>
