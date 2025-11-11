@@ -24,6 +24,18 @@ type NormalizedInvoiceData = Omit<InvoiceData, "invoiceDate" | "dueDate"> & {
   dueDate?: Date;
 };
 
+type PdfColor = [number, number, number];
+
+const COLORS = {
+  primaryText: normalizeColor(17, 24, 39),
+  mutedText: normalizeColor(75, 85, 99),
+  border: normalizeColor(229, 231, 235),
+  tableHeaderBackground: normalizeColor(249, 250, 251),
+  discount: normalizeColor(239, 68, 68),
+};
+
+const DEFAULT_TEXT_COLOR: PdfColor = COLORS.primaryText;
+
 type PdfGenerationResult = {
   base64: string;
   fileName: string;
@@ -70,25 +82,51 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
   contentParts.push(textBlock("INVOICE", MARGIN, cursorY, 24, "F2"));
   cursorY -= 18;
   const invoiceNumber = invoice.invoiceNumber || DEFAULT_INVOICE_NUMBER;
-  contentParts.push(textBlock(`#${invoiceNumber}`, MARGIN, cursorY, 12));
+  contentParts.push(textBlock(`#${invoiceNumber}`, MARGIN, cursorY, 12, "F1", COLORS.mutedText));
 
   const rightColumnX = PAGE_WIDTH - MARGIN - 200;
-  contentParts.push(textBlock(invoice.companyName || "Your Company Name", rightColumnX, PAGE_HEIGHT - MARGIN, 12, "F2"));
+  contentParts.push(
+    textBlock(
+      invoice.companyName || "Your Company Name",
+      rightColumnX,
+      PAGE_HEIGHT - MARGIN,
+      12,
+      "F2",
+    ),
+  );
   cursorY -= 36;
-  contentParts.push(textBlock(invoice.companyAddress || "", rightColumnX, PAGE_HEIGHT - MARGIN - 18, 10));
+  contentParts.push(
+    textBlock(
+      invoice.companyAddress || "",
+      rightColumnX,
+      PAGE_HEIGHT - MARGIN - 18,
+      10,
+      "F1",
+      COLORS.mutedText,
+    ),
+  );
 
   // Bill To and Dates
   const billToYStart = cursorY;
   contentParts.push(textBlock("Bill To:", MARGIN, billToYStart, 11, "F2"));
   contentParts.push(textBlock(invoice.clientName || "-", MARGIN, billToYStart - 14, 10));
-  contentParts.push(textBlock(invoice.clientAddress || "-", MARGIN, billToYStart - 28, 10));
+  contentParts.push(
+    textBlock(
+      invoice.clientAddress || "-",
+      MARGIN,
+      billToYStart - 28,
+      10,
+      "F1",
+      COLORS.mutedText,
+    ),
+  );
 
   const dateColumnX = PAGE_WIDTH - MARGIN - 200;
   const issuedDate = invoice.invoiceDate ? format(invoice.invoiceDate, "d MMM yyyy") : "-";
   const dueDate = invoice.dueDate ? format(invoice.dueDate, "d MMM yyyy") : "-";
-  contentParts.push(textBlock("Date Issued:", dateColumnX, billToYStart, 10, "F2"));
+  contentParts.push(textBlock("Date Issued:", dateColumnX, billToYStart, 10, "F2", COLORS.mutedText));
   contentParts.push(textBlock(issuedDate, dateColumnX, billToYStart - 14, 10));
-  contentParts.push(textBlock("Due Date:", dateColumnX, billToYStart - 32, 10, "F2"));
+  contentParts.push(textBlock("Due Date:", dateColumnX, billToYStart - 32, 10, "F2", COLORS.mutedText));
   contentParts.push(textBlock(dueDate, dateColumnX, billToYStart - 46, 10));
 
   cursorY = billToYStart - 70;
@@ -96,6 +134,15 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
   // Items Table Header
   const tableTop = cursorY;
   const tableHeaderHeight = 24;
+  contentParts.push(
+    fillRect(
+      MARGIN,
+      tableTop,
+      tableRight - MARGIN,
+      tableHeaderHeight,
+      COLORS.tableHeaderBackground,
+    ),
+  );
   contentParts.push(drawRow(tableTop, tableHeaderHeight, columnPositions, tableRight));
   const headerTextY = tableTop - 16;
   contentParts.push(textBlock("Item", columnPositions[0] + 6, headerTextY, 11, "F2"));
@@ -115,7 +162,7 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
     const emptyText = "No items added yet.";
     const textWidth = estimateTextWidth(emptyText, 11);
     const emptyTextX = MARGIN + (tableRight - MARGIN) / 2 - textWidth / 2;
-    contentParts.push(textBlock(emptyText, emptyTextX, rowTop - 18, 11));
+    contentParts.push(textBlock(emptyText, emptyTextX, rowTop - 18, 11, "F1", COLORS.mutedText));
     rowTop -= emptyHeight;
   } else {
     for (const item of invoice.items) {
@@ -127,7 +174,7 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
       if (descriptionLines.length > 0) {
         textY -= 12;
         for (const line of descriptionLines) {
-          contentParts.push(textBlock(line, columnPositions[0] + 6, textY, 9));
+          contentParts.push(textBlock(line, columnPositions[0] + 6, textY, 9, "F1", COLORS.mutedText));
           textY -= 12;
         }
       }
@@ -178,7 +225,7 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
   const discountText = invoice.discount > 0 ? formatCurrency(invoice.discount, invoice.currency) : "";
   const totalText = formatCurrency(total, invoice.currency);
 
-  contentParts.push(textBlock("Subtotal:", totalsLeft, totalsY, 11));
+  contentParts.push(textBlock("Subtotal:", totalsLeft, totalsY, 11, "F1", COLORS.mutedText));
   contentParts.push(
     textBlock(
       subtotalText,
@@ -190,7 +237,7 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
   );
   totalsY -= totalsSpacing;
 
-  contentParts.push(textBlock(`Tax (${invoice.taxRate}%):`, totalsLeft, totalsY, 11));
+  contentParts.push(textBlock(`Tax (${invoice.taxRate}%):`, totalsLeft, totalsY, 11, "F1", COLORS.mutedText));
   contentParts.push(
     textBlock(
       taxText,
@@ -203,7 +250,7 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
   totalsY -= totalsSpacing;
 
   if (invoice.discount > 0) {
-    contentParts.push(textBlock("Discount:", totalsLeft, totalsY, 11));
+    contentParts.push(textBlock("Discount:", totalsLeft, totalsY, 11, "F1", COLORS.mutedText));
     contentParts.push(
       textBlock(
         `- ${discountText}`,
@@ -211,11 +258,14 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
         totalsY,
         11,
         "F2",
+        COLORS.discount,
       ),
     );
     totalsY -= totalsSpacing;
   }
 
+  const totalDividerY = totalsY + totalsSpacing - 6;
+  contentParts.push(drawHorizontalLine(totalsLeft, tableRight, totalDividerY, COLORS.border));
   contentParts.push(textBlock("Total:", totalsLeft, totalsY, 13, "F2"));
   contentParts.push(
     textBlock(
@@ -235,7 +285,7 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
     contentParts.push(textBlock("Note:", MARGIN, cursorY, 11, "F2"));
     cursorY -= 14;
     for (const line of noteLines) {
-      contentParts.push(textBlock(line, MARGIN, cursorY, 10));
+      contentParts.push(textBlock(line, MARGIN, cursorY, 10, "F1", COLORS.mutedText));
       cursorY -= 12;
     }
     cursorY -= 12;
@@ -246,7 +296,7 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
     contentParts.push(textBlock("Terms & Conditions:", MARGIN, cursorY, 11, "F2"));
     cursorY -= 14;
     for (const line of additionalLines) {
-      contentParts.push(textBlock(line, MARGIN, cursorY, 10));
+      contentParts.push(textBlock(line, MARGIN, cursorY, 10, "F1", COLORS.mutedText));
       cursorY -= 12;
     }
   }
@@ -306,15 +356,31 @@ function createInvoicePdf(invoice: NormalizedInvoiceData): Buffer {
   return Buffer.from(pdf, "utf8");
 }
 
-function textBlock(text: string, x: number, y: number, fontSize = 12, fontRef: "F1" | "F2" = "F1"): string {
+function textBlock(
+  text: string,
+  x: number,
+  y: number,
+  fontSize = 12,
+  fontRef: "F1" | "F2" = "F1",
+  color: PdfColor = DEFAULT_TEXT_COLOR,
+): string {
   const escaped = escapePdfText(text ?? "");
-  return `BT /${fontRef} ${fontSize} Tf 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${escaped}) Tj ET`;
+  const colorOps = formatColor(color, "rg");
+  return `${colorOps}\nBT /${fontRef} ${fontSize} Tf 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${escaped}) Tj ET`;
 }
 
-function drawRow(top: number, height: number, columnPositions: number[], tableRight: number): string {
+function drawRow(
+  top: number,
+  height: number,
+  columnPositions: number[],
+  tableRight: number,
+  strokeColor: PdfColor = COLORS.border,
+): string {
   const bottom = top - height;
   const left = columnPositions[0];
   const segments: string[] = [];
+  segments.push(formatColor(strokeColor, "RG"));
+  segments.push("0.75 w");
   // Horizontal borders
   segments.push(`${left.toFixed(2)} ${top.toFixed(2)} m ${tableRight.toFixed(2)} ${top.toFixed(2)} l S`);
   segments.push(`${left.toFixed(2)} ${bottom.toFixed(2)} m ${tableRight.toFixed(2)} ${bottom.toFixed(2)} l S`);
@@ -326,6 +392,30 @@ function drawRow(top: number, height: number, columnPositions: number[], tableRi
     segments.push(`${x.toFixed(2)} ${top.toFixed(2)} m ${x.toFixed(2)} ${bottom.toFixed(2)} l S`);
   }
   return segments.join("\n");
+}
+
+function drawHorizontalLine(
+  left: number,
+  right: number,
+  y: number,
+  color: PdfColor,
+  lineWidth = 0.75,
+): string {
+  return `${formatColor(color, "RG")}\n${lineWidth.toFixed(2)} w\n${left.toFixed(2)} ${y.toFixed(2)} m ${right.toFixed(2)} ${y.toFixed(2)} l S`;
+}
+
+function fillRect(left: number, top: number, width: number, height: number, color: PdfColor): string {
+  const bottom = top - height;
+  return `${formatColor(color, "rg")}\n${left.toFixed(2)} ${bottom.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)} re f`;
+}
+
+function formatColor(color: PdfColor, operator: "rg" | "RG"): string {
+  const [r, g, b] = color;
+  return `${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} ${operator}`;
+}
+
+function normalizeColor(r: number, g: number, b: number): PdfColor {
+  return [r / 255, g / 255, b / 255];
 }
 
 function escapePdfText(text: string): string {
