@@ -1,7 +1,12 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileDown, ScanEye } from "lucide-react";
-import { formatCurrency } from "@/lib/currency";
+"use client";
+
+import { useTransition } from "react";
+import { toast } from "sonner";
 import { format } from "date-fns";
+import { FileDown, Loader2, ScanEye } from "lucide-react";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/currency";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InvoiceData } from "@/types/invoice";
 import { Button } from "@/components/ui/button";
@@ -13,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { downloadInvoicePreview } from "../actions";
 
 type InvoicePreviewProps = {
   showPreview?: boolean;
@@ -23,6 +29,35 @@ export default function InvoicePreviewCard({
   showPreview = false,
   invoiceData,
 }: InvoicePreviewProps) {
+  const [isDownloading, startTransition] = useTransition();
+
+  const handleDownloadPreview = () => {
+    startTransition(async () => {
+      try {
+        const file = await downloadInvoicePreview(invoiceData);
+
+        if (!file?.base64) {
+          throw new Error("Missing PDF payload");
+        }
+
+        const blob = new Blob([base64ToUint8Array(file.base64)], {
+          type: file.mimeType,
+        });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = file.filename || "invoice-preview.pdf";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+        toast.success("Invoice preview downloaded");
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to download invoice preview");
+      }
+    });
+  };
   const subtotal = invoiceData.items.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0);
   const taxAmount = (subtotal * invoiceData.taxRate) / 100;
   const total = subtotal + taxAmount - invoiceData.discount;
@@ -42,12 +77,15 @@ export default function InvoicePreviewCard({
               size="sm"
               variant="secondary"
               className="inline-flex items-center"
-              onClick={() => {
-                alert("Download Preview");
-              }}
+              disabled={isDownloading}
+              onClick={handleDownloadPreview}
             >
-              <FileDown className="h-4 w-4 mr-2" />
-              Download Preview
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4 mr-2" />
+              )}
+              {isDownloading ? "Preparing..." : "Download Preview"}
             </Button>
           </div>
         </CardTitle>
@@ -189,4 +227,16 @@ export default function InvoicePreviewCard({
       </CardContent>
     </Card>
   );
+}
+
+function base64ToUint8Array(base64: string) {
+  const binaryString = atob(base64);
+  const length = binaryString.length;
+  const bytes = new Uint8Array(length);
+
+  for (let i = 0; i < length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  return bytes;
 }
