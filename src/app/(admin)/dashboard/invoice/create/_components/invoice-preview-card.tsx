@@ -1,3 +1,6 @@
+"use client";
+
+import { useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileDown, ScanEye } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
@@ -13,6 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { downloadInvoicePreview } from "../_actions/download-invoice-preview";
+import type { InvoicePreviewPayload } from "../_actions/download-invoice-preview";
 
 type InvoicePreviewProps = {
   showPreview?: boolean;
@@ -23,9 +28,47 @@ export default function InvoicePreviewCard({
   showPreview = false,
   invoiceData,
 }: InvoicePreviewProps) {
+  const [isPending, startTransition] = useTransition();
+
   const subtotal = invoiceData.items.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0);
   const taxAmount = (subtotal * invoiceData.taxRate) / 100;
   const total = subtotal + taxAmount - invoiceData.discount;
+
+  const handleDownload = () => {
+    startTransition(async () => {
+      const payload: InvoicePreviewPayload = {
+        ...invoiceData,
+        invoiceDate: invoiceData.invoiceDate ? invoiceData.invoiceDate.toISOString() : null,
+        dueDate: invoiceData.dueDate ? invoiceData.dueDate.toISOString() : null,
+      };
+
+      try {
+        const result = await downloadInvoicePreview(payload);
+        if (!result?.base64) {
+          return;
+        }
+
+        const byteCharacters = atob(result.base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: "application/pdf" });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = result.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Failed to download invoice preview", error);
+      }
+    });
+  };
 
   return (
     <Card className={`w-full ${showPreview ? "md:max-w-1/2" : "hidden"} h-fit`}>
@@ -42,12 +85,11 @@ export default function InvoicePreviewCard({
               size="sm"
               variant="secondary"
               className="inline-flex items-center"
-              onClick={() => {
-                alert("Download Preview");
-              }}
+              onClick={handleDownload}
+              disabled={isPending}
             >
               <FileDown className="h-4 w-4 mr-2" />
-              Download Preview
+              {isPending ? "Generating..." : "Download Preview"}
             </Button>
           </div>
         </CardTitle>
