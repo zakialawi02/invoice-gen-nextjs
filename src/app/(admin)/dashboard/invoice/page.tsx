@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
 import { Metadata } from "next";
-import Link from "next/link";
+
+import CreateInvoiceButton from "./_components/create-invoice-button";
 
 export const metadata: Metadata = {
   title: "Invoice",
@@ -11,9 +11,7 @@ export default function InvoicePage() {
   return (
     <div className="flex items-center justify-between">
       <h1 className="text-2xl font-bold">Invoice</h1>
-      <Button asChild>
-        <Link href="/dashboard/invoice/create">Create Invoice</Link>
-      </Button>
+      <CreateInvoiceButton />
     </div>
   );
 }

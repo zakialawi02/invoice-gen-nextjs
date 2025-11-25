@@ -60,31 +60,59 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+}
+
+enum PartyRole {
+  ORIGIN
+  CUSTOMER
+}
+
 model Invoice {
   id            String        @id @default(cuid())
   invoiceNumber String        @unique
-  fromName      String?
-  fromAddress   String?
-  fromPhone     String?
-  fromEmail     String?
-  fromWebsite   String?
-  billToName    String?
-  billToCompany String?
-  billToPhone   String?
-  date          DateTime?
+  status        InvoiceStatus @default(DRAFT)
+  currencyCode  String        @default("USD")
+  issueDate     DateTime?
   dueDate       DateTime?
-  balanceDue    Float?
   notes         String?
-  subtotal      Float?  @default(0)
-  tax           Float?  @default(0)
-  total         Float?  @default(0)
+  terms         String?
+  subtotal      Float         @default(0)
+  tax           Float         @default(0)
+  taxRate       Float         @default(0)
+  discount      Float         @default(0)
+  total         Float         @default(0)
   userId        String
 
+  parties       InvoiceParty[]
   items         InvoiceItem[]
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+}
+
+model InvoiceParty {
+  id        String    @id @default(cuid())
+  invoiceId String
+  role      PartyRole
+  name      String?
+  company   String?
+  email     String?
+  phone     String?
+  address   String?
+  website   String?
+
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([invoiceId, role])
 }
 
 model InvoiceItem {
@@ -96,6 +124,7 @@ model InvoiceItem {
   rate        Float
   amount      Float
   notes       String?
+  position    Int      @default(0)
 
   invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
