@@ -14,10 +14,22 @@ export default function CreateInvoiceButton() {
   const handleCreate = async () => {
     try {
       setIsCreating(true);
-      const response = await fetch("/api/invoices", { method: "POST" });
+      const response = await fetch("/api/invoices", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "include",
+      });
 
       if (!response.ok) {
-        throw new Error("Failed to create invoice");
+        const errorBody = await response.json().catch(() => null);
+        if (response.status === 401) {
+          toast.error("Please sign in to create an invoice");
+          startTransition(() => router.push("/auth?callbackUrl=/dashboard/invoice"));
+          return;
+        }
+
+        const message = errorBody?.message ?? "Failed to create invoice";
+        throw new Error(message);
       }
 
       const invoice = await response.json();
@@ -27,7 +39,9 @@ export default function CreateInvoiceButton() {
       });
     } catch (error) {
       console.error(error);
-      toast.error("Unable to start a new invoice");
+      toast.error(
+        error instanceof Error ? error.message : "Unable to start a new invoice",
+      );
     } finally {
       setIsCreating(false);
     }
