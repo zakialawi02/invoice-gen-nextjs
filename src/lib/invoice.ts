@@ -21,10 +21,13 @@ export type InvoiceItemPayload = {
   notes?: string | null;
 };
 
-export const generateInvoiceNumber = () => {
-  const now = new Date();
-  const randomSuffix = crypto.randomUUID().slice(0, 6).toUpperCase();
-  return `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${randomSuffix}`;
+const formatInvoiceNumber = (prefix: string, padLength: number, sequenceValue: number) => {
+  return `${prefix}-${String(sequenceValue).padStart(Math.max(3, padLength || 5), "0")}`;
+};
+
+const roundCurrency = (value: number, precision = 2) => {
+  const factor = 10 ** precision;
+  return Math.round(value * factor) / factor;
 };
 
 export const calculateTotals = (items: InvoiceItemPayload[], taxRate: number, discount: number) => {
@@ -37,16 +40,36 @@ export const calculateTotals = (items: InvoiceItemPayload[], taxRate: number, di
   const normalizedTaxRate = Math.max(0, Number.isFinite(taxRate) ? taxRate : 0);
   const normalizedDiscount = Math.max(0, Number.isFinite(discount) ? discount : 0);
 
-  const tax = subtotal * (normalizedTaxRate / 100);
-  const total = Math.max(0, subtotal + tax - normalizedDiscount);
+  const tax = roundCurrency(subtotal * (normalizedTaxRate / 100));
+  const total = Math.max(0, roundCurrency(subtotal + tax - normalizedDiscount));
 
-  return { subtotal, tax, total };
+  return { subtotal: roundCurrency(subtotal), tax, total };
+};
+
+export const allocateInvoiceNumber = async (userId: string) => {
+  const sequence = await prisma.invoiceSequence.upsert({
+    where: { userId_prefix: { userId, prefix: "INV" } },
+    update: { lastNumber: { increment: 1 } },
+    create: { userId, prefix: "INV", padLength: 5, lastNumber: 1 },
+  });
+
+  const invoiceNumber = formatInvoiceNumber(sequence.prefix, sequence.padLength, sequence.lastNumber);
+
+  return {
+    invoiceNumber,
+    sequenceId: sequence.id,
+    sequenceValue: sequence.lastNumber,
+  };
 };
 
 export const createDraftInvoice = async (userId: string) => {
+  const numbering = await allocateInvoiceNumber(userId);
+
   return prisma.invoice.create({
     data: {
-      invoiceNumber: generateInvoiceNumber(),
+      invoiceNumber: numbering.invoiceNumber,
+      sequenceId: numbering.sequenceId,
+      sequenceValue: numbering.sequenceValue,
       userId,
       status: InvoiceStatus.DRAFT,
       currencyCode: "USD",

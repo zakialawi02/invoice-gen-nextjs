@@ -1,10 +1,26 @@
-import { InvoiceStatus, PartyRole } from "@prisma/client";
+import { Invoice, InvoiceItem, InvoiceParty, InvoiceStatus, PartyRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { InvoiceItemPayload, calculateTotals } from "@/lib/invoice";
 import { prisma } from "@/lib/prisma";
+
+type InvoiceWithRelations = Invoice & { items: InvoiceItem[]; parties: InvoiceParty[] };
+
+const serializeInvoice = (invoice: InvoiceWithRelations) => ({
+  ...invoice,
+  subtotal: Number(invoice.subtotal),
+  tax: Number(invoice.tax),
+  taxRate: Number(invoice.taxRate),
+  discount: Number(invoice.discount),
+  total: Number(invoice.total),
+  items: invoice.items.map((item: InvoiceItem) => ({
+    ...item,
+    rate: Number(item.rate),
+    amount: Number(item.amount),
+  })),
+});
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -23,7 +39,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       return NextResponse.json({ message: "Invoice not found" }, { status: 404 });
     }
 
-    return NextResponse.json(invoice);
+    return NextResponse.json(serializeInvoice(invoice));
   } catch (error) {
     console.error(error);
     return NextResponse.json({ message: "Failed to fetch invoice" }, { status: 500 });
@@ -142,7 +158,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       include: { parties: true, items: { orderBy: { position: "asc" } } },
     });
 
-    return NextResponse.json(updatedInvoice);
+    return NextResponse.json(updatedInvoice ? serializeInvoice(updatedInvoice) : updatedInvoice);
   } catch (error) {
     console.error(error);
     return NextResponse.json({ message: "Failed to update invoice" }, { status: 500 });

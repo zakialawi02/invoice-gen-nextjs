@@ -1,12 +1,14 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export default function CreateInvoiceButton() {
   const [isCreating, setIsCreating] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const handleCreate = async () => {
@@ -20,7 +22,9 @@ export default function CreateInvoiceButton() {
 
       const invoice = await response.json();
       toast.success("Draft invoice created");
-      router.push(`/dashboard/invoice/create/${invoice.id}`);
+      startTransition(() => {
+        router.push(`/dashboard/invoice/create/${invoice.id}`);
+      });
     } catch (error) {
       console.error(error);
       toast.error("Unable to start a new invoice");
@@ -30,8 +34,15 @@ export default function CreateInvoiceButton() {
   };
 
   return (
-    <Button onClick={handleCreate} disabled={isCreating} aria-busy={isCreating}>
-      {isCreating ? "Creating..." : "Create Invoice"}
+    <Button onClick={handleCreate} disabled={isCreating || isPending} aria-busy={isCreating || isPending}>
+      {isCreating || isPending ? (
+        <span className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Creating...
+        </span>
+      ) : (
+        "Create Invoice"
+      )}
     </Button>
   );
 }

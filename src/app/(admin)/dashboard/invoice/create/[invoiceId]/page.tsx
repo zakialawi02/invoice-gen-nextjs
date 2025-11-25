@@ -36,6 +36,12 @@ export default async function InvoiceEditorPage({ params }: PageProps) {
   const from = invoice.parties.find((party) => party.role === PartyRole.ORIGIN);
   const billTo = invoice.parties.find((party) => party.role === PartyRole.CUSTOMER);
 
+  const items = invoice.items.map((item) => ({
+    ...item,
+    rate: Number(item.rate),
+    amount: Number(item.amount),
+  }));
+
   return (
     <InvoiceEditor
       invoice={{
@@ -46,12 +52,12 @@ export default async function InvoiceEditorPage({ params }: PageProps) {
         notes: invoice.notes ?? "",
         terms: invoice.terms ?? "",
         currencyCode: invoice.currencyCode,
-        taxRate: invoice.taxRate,
-        discount: invoice.discount,
-        subtotal: invoice.subtotal,
-        tax: invoice.tax,
-        total: invoice.total,
-        items: invoice.items,
+        taxRate: Number(invoice.taxRate),
+        discount: Number(invoice.discount),
+        subtotal: Number(invoice.subtotal),
+        tax: Number(invoice.tax),
+        total: Number(invoice.total),
+        items,
         from,
         billTo,
       }}

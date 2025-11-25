@@ -47,6 +47,7 @@ model User {
   accounts Account[]
   sessions Session[]
   invoices Invoice[]
+  invoiceSequences InvoiceSequence[]
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -74,26 +75,32 @@ enum PartyRole {
 
 model Invoice {
   id            String        @id @default(cuid())
-  invoiceNumber String        @unique
+  invoiceNumber String
+  sequenceId    String
+  sequenceValue Int           @default(1)
   status        InvoiceStatus @default(DRAFT)
   currencyCode  String        @default("USD")
   issueDate     DateTime?
   dueDate       DateTime?
   notes         String?
   terms         String?
-  subtotal      Float         @default(0)
-  tax           Float         @default(0)
-  taxRate       Float         @default(0)
-  discount      Float         @default(0)
-  total         Float         @default(0)
+  subtotal      Decimal       @db.Decimal(18, 2) @default(0)
+  tax           Decimal       @db.Decimal(18, 2) @default(0)
+  taxRate       Decimal       @db.Decimal(8, 4) @default(0)
+  discount      Decimal       @db.Decimal(18, 2) @default(0)
+  total         Decimal       @db.Decimal(18, 2) @default(0)
   userId        String
 
   parties       InvoiceParty[]
   items         InvoiceItem[]
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sequence      InvoiceSequence @relation(fields: [sequenceId], references: [id], onDelete: Restrict)
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  @@unique([userId, invoiceNumber])
+  @@index([sequenceId, sequenceValue])
 }
 
 model InvoiceParty {
@@ -121,8 +128,8 @@ model InvoiceItem {
   name        String
   description String?
   quantity    Int
-  rate        Float
-  amount      Float
+  rate        Decimal @db.Decimal(18, 2)
+  amount      Decimal @db.Decimal(18, 2)
   notes       String?
   position    Int      @default(0)
 
@@ -130,4 +137,20 @@ model InvoiceItem {
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+}
+
+model InvoiceSequence {
+  id         String   @id @default(cuid())
+  userId     String
+  prefix     String   @default("INV")
+  padLength  Int      @default(5)
+  lastNumber Int      @default(0)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, prefix])
 }
