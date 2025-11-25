@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Trash2 } from "lucide-react";
 import { calculateTotals } from "@/lib/invoice";
 import { InvoiceFormValues, InvoiceItem, InvoiceParty } from "@/types/invoice";
 
@@ -182,7 +183,7 @@ export default function InvoiceEditor({ invoice }: InvoiceEditorProps) {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+      <div className={`grid gap-6 ${showPreview ? "lg:grid-cols-[1.2fr_1fr]" : ""}`}>
         <Card className="p-6 space-y-6">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-6 md:grid-cols-2">
@@ -262,14 +263,6 @@ export default function InvoiceEditor({ invoice }: InvoiceEditorProps) {
                 <Label htmlFor="due-date">Due Date</Label>
                 <Input id="due-date" type="date" {...register("dueDate")} />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="tax-rate">Tax Rate (%)</Label>
-                <Input id="tax-rate" type="number" step="0.01" {...register("taxRate", { valueAsNumber: true })} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="discount">Discount (Amount)</Label>
-                <Input id="discount" type="number" step="0.01" {...register("discount", { valueAsNumber: true })} />
-              </div>
             </div>
 
             <Separator />
@@ -333,12 +326,33 @@ export default function InvoiceEditor({ invoice }: InvoiceEditorProps) {
                         </div>
                       </div>
 
-                      <Button type="button" variant="ghost" onClick={() => remove(index)} className="text-red-500 hover:text-red-600">
-                        Remove
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => remove(index)}
+                        className="text-red-500 hover:text-red-600"
+                        aria-label="Remove item"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                        <span className="sr-only">Remove</span>
                       </Button>
                     </div>
                   </Card>
                 ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="tax-rate">Tax Rate (%)</Label>
+                <Input id="tax-rate" type="number" step="0.01" {...register("taxRate", { valueAsNumber: true })} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="discount">Discount (Amount)</Label>
+                <Input id="discount" type="number" step="0.01" {...register("discount", { valueAsNumber: true })} />
               </div>
             </div>
 
