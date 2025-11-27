@@ -76,7 +76,7 @@ interface InvoiceFormProps {
 }
 
 export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProps) {
-  const [formData, setFormData] = useState<InvoiceFormData>({
+  const [formData, setFormData] = useState<InvoiceFormData>(() => ({
     invoiceNumber: initialData?.invoiceNumber || "",
     currency: initialData?.currency || "USD",
     discount: initialData?.discount || 0,
@@ -85,7 +85,9 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
     shipping: initialData?.shipping || 0,
     items: initialData?.items || [],
     ...initialData,
-  });
+    date: initialData?.date || new Date(),
+    dueDate: initialData?.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  }));
 
   // Use ref to avoid infinite loop with onChange in useEffect
   const onChangeRef = useRef(onChange);
@@ -339,7 +341,7 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
               value={formData.currency}
               onValueChange={(value) => updateField("currency", value)}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -374,7 +376,7 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
               value={formData.paymentTerms || ""}
               onValueChange={(value) => updateField("paymentTerms", value)}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select terms" />
               </SelectTrigger>
               <SelectContent>
@@ -408,116 +410,110 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
         </CardHeader>
         <CardContent className="space-y-4">
           {formData.items.length > 0 && (
-            <div className="overflow-x-auto">
-              {/* Table Header */}
-              <div className="hidden md:grid md:grid-cols-12 gap-3 pb-3 px-4 border-b-2 border-border/50 font-medium text-sm text-muted-foreground">
-                <div className="col-span-5">Item Name</div>
-                <div className="col-span-2 text-center">Quantity</div>
-                <div className="col-span-2 text-right">Rate</div>
-                <div className="col-span-2 text-right">Amount</div>
-                <div className="col-span-1 text-center">Action</div>
-              </div>
-
-              {/* Table Body */}
-              <div className="space-y-3 mt-2">
-                {formData.items.map((item, index) => (
-                  <div
-                    key={index}
-                    className="group relative rounded-lg border border-border/50 bg-card hover:bg-accent/5 hover:border-primary/20 transition-all duration-200"
-                  >
-                    {/* Main Row: Item Name, Quantity, Rate, Amount, Action */}
-                    <div className="grid grid-cols-12 gap-3 p-4 pb-2">
-                      {/* Item Name Column */}
-                      <div className="col-span-12 md:col-span-5 space-y-1.5">
-                        <Label className="text-xs md:hidden text-muted-foreground">Item Name</Label>
+            <div className="space-y-4">
+              {formData.items.map((item, index) => (
+                <div
+                  key={index}
+                  className="group relative rounded-lg border-2 border-dashed border-border/50 bg-card p-6 hover:border-primary/30 transition-all duration-200"
+                >
+                  {/* Item Name Row with Delete Button */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor={`item-name-${index}`} className="text-sm font-medium">
+                          Item Name
+                        </Label>
                         <Input
+                          id={`item-name-${index}`}
                           value={item.name}
                           onChange={(e) => updateItem(index, "name", e.target.value)}
-                          placeholder="Enter item name"
+                          placeholder="New line item"
                           required
-                          className="h-9 bg-background font-medium"
+                          className="h-11 bg-background"
                         />
                       </div>
-
-                      {/* Quantity Column */}
-                      <div className="col-span-4 md:col-span-2 space-y-1.5">
-                        <Label className="text-xs md:hidden text-muted-foreground">Quantity</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            updateItem(index, "quantity", parseFloat(e.target.value) || 0)
-                          }
-                          required
-                          className="h-9 bg-background text-center"
-                        />
-                      </div>
-
-                      {/* Rate Column */}
-                      <div className="col-span-4 md:col-span-2 space-y-1.5">
-                        <Label className="text-xs md:hidden text-muted-foreground">Rate</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.rate}
-                          onChange={(e) =>
-                            updateItem(index, "rate", parseFloat(e.target.value) || 0)
-                          }
-                          required
-                          className="h-9 bg-background text-right"
-                        />
-                      </div>
-
-                      {/* Amount Column */}
-                      <div className="col-span-3 md:col-span-2 space-y-1.5">
-                        <Label className="text-xs md:hidden text-muted-foreground">Amount</Label>
-                        <Input
-                          value={item.amount.toFixed(2)}
-                          disabled
-                          className="h-9 bg-muted/50 text-right font-semibold"
-                        />
-                      </div>
-
-                      {/* Action Column */}
-                      <div className="col-span-1 md:col-span-1 flex items-end justify-center">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeItem(index)}
-                          className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Full Width Description Row */}
-                    <div className="px-4 pb-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">
-                          Description (Optional)
-                        </Label>
-                        <Textarea
-                          value={item.description || ""}
-                          onChange={(e) => updateItem(index, "description", e.target.value)}
-                          placeholder="Add item description..."
-                          className="min-h-[60px] resize-none bg-background text-sm w-full"
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Row number indicator */}
-                    <div className="absolute -left-3 top-6 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      {index + 1}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeItem(index)}
+                        className="mt-8 h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  {/* Description Row - Full Width */}
+                  <div className="space-y-2 mb-4">
+                    <Label htmlFor={`item-description-${index}`} className="text-sm font-medium">
+                      Description
+                    </Label>
+                    <Textarea
+                      id={`item-description-${index}`}
+                      value={item.description || ""}
+                      onChange={(e) => updateItem(index, "description", e.target.value)}
+                      placeholder="Describe the service or product"
+                      className="min-h-[80px] resize-none bg-background"
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Quantity, Rate, Total Row */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`item-quantity-${index}`} className="text-sm font-medium">
+                        Quantity
+                      </Label>
+                      <Input
+                        id={`item-quantity-${index}`}
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          updateItem(index, "quantity", parseFloat(e.target.value) || 0)
+                        }
+                        required
+                        className="h-11 bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`item-rate-${index}`} className="text-sm font-medium">
+                        Rate
+                      </Label>
+                      <Input
+                        id={`item-rate-${index}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.rate}
+                        onChange={(e) => updateItem(index, "rate", parseFloat(e.target.value) || 0)}
+                        required
+                        className="h-11 bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`item-total-${index}`} className="text-sm font-medium">
+                        Total
+                      </Label>
+                      <Input
+                        id={`item-total-${index}`}
+                        value={`$${item.amount.toFixed(2)}`}
+                        disabled
+                        className="h-11 bg-muted/50 font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row number indicator */}
+                  <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center shadow-md">
+                    {index + 1}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -549,6 +545,7 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
                 id="discount"
                 type="number"
                 min="0"
+                max={formData.discountType === "PERCENTAGE" ? "100" : undefined}
                 step="0.01"
                 value={formData.discount}
                 onChange={(e) => updateField("discount", parseFloat(e.target.value) || 0)}
@@ -575,6 +572,7 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
               id="taxRate"
               type="number"
               min="0"
+              max="100"
               step="0.01"
               value={formData.taxRate}
               onChange={(e) => updateField("taxRate", parseFloat(e.target.value) || 0)}

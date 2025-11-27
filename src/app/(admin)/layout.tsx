@@ -33,7 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="flex-1 flex flex-col">
           <DashboardNavbar />
           <Suspense fallback={<Loading />}>
-            <main className="flex-1 px-6 py-4 bg-background">{children}</main>
+            <main className="flex-1 px-4 py-2 bg-background">{children}</main>
             <Toaster />
           </Suspense>
         </div>

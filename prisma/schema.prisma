@@ -61,23 +61,54 @@ model VerificationToken {
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
+  id            String        @id @default(ulid())
   invoiceNumber String        @unique
+  status        InvoiceStatus @default(DRAFT)
+
+  // From (Sender) Information
   fromName      String?
-  fromAddress   String?
+  fromAddress   String?       @db.Text
+  fromCity      String?
+  fromState     String?
+  fromZip       String?
+  fromCountry   String?
   fromPhone     String?
   fromEmail     String?
   fromWebsite   String?
+
+  // Bill To (Client) Information
   billToName    String?
   billToCompany String?
+  billToEmail   String?
   billToPhone   String?
-  date          DateTime?
+  billToAddress String?       @db.Text
+  billToCity    String?
+  billToState   String?
+  billToZip     String?
+  billToCountry String?
+
+  // Invoice Details
+  date          DateTime      @default(now())
   dueDate       DateTime?
-  balanceDue    Float?
-  notes         String?
-  subtotal      Float?  @default(0)
-  tax           Float?  @default(0)
-  total         Float?  @default(0)
+  paymentTerms  String?       // e.g., "Net 30", "Due on Receipt"
+  poNumber      String?       // Purchase Order Number
+
+  // Financial Information
+  currency      String        @default("USD")
+  subtotal      Float         @default(0)
+  discount      Float         @default(0)
+  discountType  DiscountType  @default(PERCENTAGE) // PERCENTAGE or FIXED
+  tax           Float         @default(0)
+  taxRate       Float         @default(0)
+  shipping      Float         @default(0)
+  total         Float         @default(0)
+  amountPaid    Float         @default(0)
+  balanceDue    Float         @default(0)
+
+  // Additional Information
+  notes         String?       @db.Text
+  terms         String?       @db.Text
+
   userId        String
 
   items         InvoiceItem[]
@@ -85,6 +116,24 @@ model Invoice {
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([invoiceNumber])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
 }
 
 model InvoiceItem {

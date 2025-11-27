@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { Prisma, InvoiceStatus } from "@prisma/client";
 
-// GET all invoices for current user
-export async function GET() {
+// GET all invoices for current user with pagination and filtering
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -20,15 +21,52 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const invoices = await prisma.invoice.findMany({
-      where: { userId: user.id },
-      include: {
-        items: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const search = searchParams.get("search") || "";
+    const status = searchParams.get("status") || "ALL";
 
-    return NextResponse.json(invoices);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.InvoiceWhereInput = {
+      userId: user.id,
+    };
+
+    if (status && status !== "ALL") {
+      where.status = status as InvoiceStatus;
+    }
+
+    if (search) {
+      where.OR = [
+        { invoiceNumber: { contains: search, mode: "insensitive" } },
+        { billToName: { contains: search, mode: "insensitive" } },
+        { billToCompany: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [invoices, total] = await Promise.all([
+      prisma.invoice.findMany({
+        where,
+        include: {
+          items: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.invoice.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      data: invoices,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("Error fetching invoices:", error);
     return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });
@@ -58,12 +96,18 @@ export async function POST() {
     });
     const invoiceNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
 
+    const now = new Date();
+    const dueDate = new Date(now);
+    dueDate.setDate(dueDate.getDate() + 7);
+
     // Create invoice with minimal data (draft)
     const invoice = await prisma.invoice.create({
       data: {
         invoiceNumber,
         userId: user.id,
         status: "DRAFT",
+        date: now,
+        dueDate: dueDate,
       },
     });
 
