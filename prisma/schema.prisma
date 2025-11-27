@@ -47,6 +47,7 @@ model User {
   accounts Account[]
   sessions Session[]
   invoices Invoice[]
+  clients  Client[]
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -64,6 +65,9 @@ model Invoice {
   id            String        @id @default(ulid())
   invoiceNumber String        @unique
   status        InvoiceStatus @default(DRAFT)
+
+  clientId      String?
+  client        Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   // From (Sender) Information
   fromName      String?
@@ -117,6 +121,7 @@ model Invoice {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  @@index([clientId])
   @@index([userId])
   @@index([status])
   @@index([invoiceNumber])
@@ -150,4 +155,27 @@ model InvoiceItem {
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  name        String
+  company     String?
+  email       String?
+  phone       String?
+  address     String?  @db.Text
+  city        String?
+  state       String?
+  zip         String?
+  country     String?
+  image       String?
+
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }

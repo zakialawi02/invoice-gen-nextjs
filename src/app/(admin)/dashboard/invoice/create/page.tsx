@@ -94,6 +94,7 @@ export default function CreateNewInvoicePage() {
         fromPhone: invoice.fromPhone,
         fromEmail: invoice.fromEmail,
         fromWebsite: invoice.fromWebsite,
+        clientId: invoice.clientId,
         billToName: invoice.billToName,
         billToCompany: invoice.billToCompany,
         billToEmail: invoice.billToEmail,

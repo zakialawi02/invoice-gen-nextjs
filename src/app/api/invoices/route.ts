@@ -50,6 +50,7 @@ export async function GET(request: Request) {
         where,
         include: {
           items: true,
+          client: true,
         },
         orderBy: { createdAt: "desc" },
         skip,

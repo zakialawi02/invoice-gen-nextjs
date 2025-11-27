@@ -23,15 +23,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
 
-    const invoice = await prisma.invoice.findFirst({
-      where: {
-        id,
-        userId: user.id,
-      },
-      include: {
-        items: true,
-      },
-    });
+  const invoice = await prisma.invoice.findFirst({
+    where: {
+      id,
+      userId: user.id,
+    },
+    include: {
+      items: true,
+      client: true,
+    },
+  });
 
     if (!invoice) {
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
@@ -56,6 +57,7 @@ interface InvoiceItemInput {
 
 interface InvoiceUpdateBody {
   items?: InvoiceItemInput[];
+  clientId?: string | null;
   date?: string | Date;
   dueDate?: string | Date;
   discount?: number | string;
@@ -113,6 +115,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const updateData: InvoiceUpdateBody = {
       ...invoiceData,
     };
+
+    if (updateData.clientId) {
+      const client = await prisma.client.findFirst({
+        where: { id: updateData.clientId as string, userId: user.id },
+      });
+
+      if (!client) {
+        return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      }
+    }
 
     // Convert date strings to Date objects if they exist
     if (typeof updateData.date === "string") {

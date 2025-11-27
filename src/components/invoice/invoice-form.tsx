@@ -13,6 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Plus, Trash2 } from "lucide-react";
 
 export interface InvoiceItem {
@@ -25,6 +33,7 @@ export interface InvoiceItem {
 }
 
 export interface InvoiceFormData {
+  clientId?: string | null;
   // From Information
   fromName?: string;
   fromAddress?: string;
@@ -75,6 +84,20 @@ interface InvoiceFormProps {
   onChange?: (data: InvoiceFormData) => void;
 }
 
+interface Client {
+  id: string;
+  name: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  image?: string | null;
+}
+
 export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProps) {
   const [formData, setFormData] = useState<InvoiceFormData>(() => ({
     invoiceNumber: initialData?.invoiceNumber || "",
@@ -88,6 +111,20 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
     date: initialData?.date || new Date(),
     dueDate: initialData?.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   }));
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isClientDrawerOpen, setIsClientDrawerOpen] = useState(false);
+  const [newClient, setNewClient] = useState<Partial<Client>>({
+    name: "",
+    company: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "",
+  });
+  const [isSavingClient, setIsSavingClient] = useState(false);
 
   // Use ref to avoid infinite loop with onChange in useEffect
   const onChangeRef = useRef(onChange);
@@ -99,6 +136,28 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
   useEffect(() => {
     onChangeRef.current?.(formData);
   }, [formData]);
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        const response = await fetch("/api/clients");
+        if (!response.ok) return;
+        const data = (await response.json()) as Client[];
+        setClients(data);
+      } catch (error) {
+        console.error("Failed to load clients", error);
+      }
+    };
+
+    fetchClients();
+  }, []);
+
+  useEffect(() => {
+    if (formData.clientId) {
+      handleSelectClient(formData.clientId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.clientId, clients]);
 
   const updateField = (field: keyof InvoiceFormData, value: string | number | Date) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -133,6 +192,67 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
+  };
+
+  const handleSelectClient = (clientId: string) => {
+    if (!clientId) {
+      setFormData((prev) => ({ ...prev, clientId: null }));
+      return;
+    }
+
+    const client = clients.find((item) => item.id === clientId);
+    if (!client) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      clientId,
+      billToName: client.name,
+      billToCompany: client.company || undefined,
+      billToEmail: client.email || undefined,
+      billToPhone: client.phone || undefined,
+      billToAddress: client.address || undefined,
+      billToCity: client.city || undefined,
+      billToState: client.state || undefined,
+      billToZip: client.zip || undefined,
+      billToCountry: client.country || undefined,
+    }));
+  };
+
+  const handleCreateClient = async () => {
+    if (!newClient.name?.trim()) return;
+
+    try {
+      setIsSavingClient(true);
+      const response = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newClient),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create client");
+      }
+
+      const client = (await response.json()) as Client;
+      setClients((prev) => [client, ...prev]);
+      handleSelectClient(client.id);
+      setIsClientDrawerOpen(false);
+      setNewClient({
+        name: "",
+        company: "",
+        email: "",
+        phone: "",
+        address: "",
+        city: "",
+        state: "",
+        zip: "",
+        country: "",
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSavingClient(false);
+    }
   };
 
   return (
@@ -231,9 +351,48 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
       {/* Bill To Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Bill To (Client Information)</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Bill To (Client Information)</CardTitle>
+            <Button variant="link" size="sm" type="button" onClick={() => setIsClientDrawerOpen(true)}>
+              Add New Client
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="billToName">Client</Label>
+              <Select
+                value={formData.clientId || ""}
+                onValueChange={(value) => handleSelectClient(value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="" className="text-left">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Manual entry</span>
+                      <span className="text-muted-foreground text-xs">Keep editing the fields below</span>
+                    </div>
+                  </SelectItem>
+                  {clients.length === 0 && (
+                    <div className="text-muted-foreground p-2 text-sm">No clients available</div>
+                  )}
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id} className="text-left">
+                    <div className="flex flex-col">
+                      <span className="font-medium">{client.name}</span>
+                      {(client.company || client.email) && (
+                        <span className="text-muted-foreground text-xs">
+                          {client.company || client.email}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="billToName">Client Name</Label>
             <Input
@@ -620,6 +779,112 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
           </div>
         </CardContent>
       </Card>
+
+      <Sheet open={isClientDrawerOpen} onOpenChange={setIsClientDrawerOpen}>
+        <SheetContent side="right" className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Add New Client</SheetTitle>
+          </SheetHeader>
+          <div className="p-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newClientName">Client Name</Label>
+              <Input
+                id="newClientName"
+                value={newClient.name || ""}
+                onChange={(e) => setNewClient((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="Acme Corp"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newClientCompany">Company</Label>
+              <Input
+                id="newClientCompany"
+                value={newClient.company || ""}
+                onChange={(e) => setNewClient((prev) => ({ ...prev, company: e.target.value }))}
+                placeholder="Company Name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newClientEmail">Email</Label>
+              <Input
+                id="newClientEmail"
+                type="email"
+                value={newClient.email || ""}
+                onChange={(e) => setNewClient((prev) => ({ ...prev, email: e.target.value }))}
+                placeholder="client@email.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newClientPhone">Phone</Label>
+              <Input
+                id="newClientPhone"
+                value={newClient.phone || ""}
+                onChange={(e) => setNewClient((prev) => ({ ...prev, phone: e.target.value }))}
+                placeholder="+1 234 567 890"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newClientAddress">Address</Label>
+              <Input
+                id="newClientAddress"
+                value={newClient.address || ""}
+                onChange={(e) => setNewClient((prev) => ({ ...prev, address: e.target.value }))}
+                placeholder="Street Address"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="newClientCity">City</Label>
+                <Input
+                  id="newClientCity"
+                  value={newClient.city || ""}
+                  onChange={(e) => setNewClient((prev) => ({ ...prev, city: e.target.value }))}
+                  placeholder="City"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newClientState">State/Province</Label>
+                <Input
+                  id="newClientState"
+                  value={newClient.state || ""}
+                  onChange={(e) => setNewClient((prev) => ({ ...prev, state: e.target.value }))}
+                  placeholder="State"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newClientZip">ZIP/Postal Code</Label>
+                <Input
+                  id="newClientZip"
+                  value={newClient.zip || ""}
+                  onChange={(e) => setNewClient((prev) => ({ ...prev, zip: e.target.value }))}
+                  placeholder="ZIP"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newClientCountry">Country</Label>
+                <Input
+                  id="newClientCountry"
+                  value={newClient.country || ""}
+                  onChange={(e) => setNewClient((prev) => ({ ...prev, country: e.target.value }))}
+                  placeholder="Country"
+                />
+              </div>
+            </div>
+          </div>
+          <SheetFooter>
+            <div className="flex w-full justify-end gap-2">
+              <SheetClose asChild>
+                <Button variant="outline" type="button">
+                  Cancel
+                </Button>
+              </SheetClose>
+              <Button onClick={handleCreateClient} disabled={isSavingClient || !newClient.name?.trim()} type="button">
+                {isSavingClient ? "Saving..." : "Save Client"}
+              </Button>
+            </div>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <input type="submit" hidden />
     </form>
