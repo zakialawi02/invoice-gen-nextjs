@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
+import { ClientSelect, Client } from "./client-select";
 
 export interface InvoiceItem {
   id?: string;
@@ -37,6 +38,7 @@ export interface InvoiceFormData {
   fromWebsite?: string;
 
   // Bill To Information
+  clientId?: string;
   billToName?: string;
   billToCompany?: string;
   billToEmail?: string;
@@ -77,6 +79,7 @@ interface InvoiceFormProps {
 
 export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProps) {
   const [formData, setFormData] = useState<InvoiceFormData>(() => ({
+    clientId: initialData?.clientId || "",
     invoiceNumber: initialData?.invoiceNumber || "",
     currency: initialData?.currency || "USD",
     discount: initialData?.discount || 0,
@@ -128,6 +131,33 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
       ...prev,
       items: prev.items.filter((_, i) => i !== index),
     }));
+  };
+
+  const handleClientSelect = (client: Client | null) => {
+    if (client) {
+      setFormData((prev) => ({
+        ...prev,
+        clientId: client.id,
+        billToName: client.name,
+        billToCompany: client.company || "",
+        billToEmail: client.email || "",
+        billToPhone: client.phone || "",
+        billToAddress: client.address || "",
+        billToCity: client.city || "",
+        billToState: client.state || "",
+        billToZip: client.zip || "",
+        billToCountry: client.country || "",
+      }));
+    } else {
+      // Clear fields if client is deselected, or keep them?
+      // Usually better to keep them or just clear the ID.
+      // Let's just clear the ID so it becomes a "manual" entry again,
+      // but keep the data so the user doesn't lose it.
+      setFormData((prev) => ({
+        ...prev,
+        clientId: "",
+      }));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -233,89 +263,40 @@ export function InvoiceForm({ initialData, onSubmit, onChange }: InvoiceFormProp
         <CardHeader>
           <CardTitle>Bill To (Client Information)</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="billToName">Client Name</Label>
-            <Input
-              id="billToName"
-              value={formData.billToName || ""}
-              onChange={(e) => updateField("billToName", e.target.value)}
-              placeholder="Client Name"
-            />
+        <CardContent>
+          <div className="w-full mb-4">
+            <ClientSelect value={formData.clientId} onSelect={handleClientSelect} />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="billToCompany">Company</Label>
-            <Input
-              id="billToCompany"
-              value={formData.billToCompany || ""}
-              onChange={(e) => updateField("billToCompany", e.target.value)}
-              placeholder="Company Name"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="billToEmail">Email</Label>
-            <Input
-              id="billToEmail"
-              type="email"
-              value={formData.billToEmail || ""}
-              onChange={(e) => updateField("billToEmail", e.target.value)}
-              placeholder="client@email.com"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="billToPhone">Phone</Label>
-            <Input
-              id="billToPhone"
-              value={formData.billToPhone || ""}
-              onChange={(e) => updateField("billToPhone", e.target.value)}
-              placeholder="+1 234 567 8900"
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="billToAddress">Address</Label>
-            <Input
-              id="billToAddress"
-              value={formData.billToAddress || ""}
-              onChange={(e) => updateField("billToAddress", e.target.value)}
-              placeholder="Street Address"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="billToCity">City</Label>
-            <Input
-              id="billToCity"
-              value={formData.billToCity || ""}
-              onChange={(e) => updateField("billToCity", e.target.value)}
-              placeholder="City"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="billToState">State/Province</Label>
-            <Input
-              id="billToState"
-              value={formData.billToState || ""}
-              onChange={(e) => updateField("billToState", e.target.value)}
-              placeholder="State"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="billToZip">ZIP/Postal Code</Label>
-            <Input
-              id="billToZip"
-              value={formData.billToZip || ""}
-              onChange={(e) => updateField("billToZip", e.target.value)}
-              placeholder="ZIP"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="billToCountry">Country</Label>
-            <Input
-              id="billToCountry"
-              value={formData.billToCountry || ""}
-              onChange={(e) => updateField("billToCountry", e.target.value)}
-              placeholder="Country"
-            />
-          </div>
+
+          {formData.clientId && (
+            <div className="rounded-lg border p-4 bg-muted/20">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-muted-foreground">Contact Details</h4>
+                  <div className="grid gap-1">
+                    {formData.billToCompany && (
+                      <p className="font-medium">{formData.billToCompany}</p>
+                    )}
+                    <p>{formData.billToName}</p>
+                    <p>{formData.billToEmail}</p>
+                    <p>{formData.billToPhone}</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-muted-foreground">Address</h4>
+                  <div className="grid gap-1">
+                    <p>{formData.billToAddress}</p>
+                    <p>
+                      {[formData.billToCity, formData.billToState, formData.billToZip]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                    <p>{formData.billToCountry}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

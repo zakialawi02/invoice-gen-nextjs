@@ -35,6 +35,9 @@ export const invoiceSchema = z.object({
   billToZip: z.string().optional(),
   billToCountry: z.string().optional(),
 
+  // Client Selection (optional - if not provided, use manual Bill To fields)
+  clientId: z.string().optional(),
+
   // Invoice Details
   invoiceNumber: z.string().min(1, "Invoice number is required"),
   date: z.union([z.string(), z.date()]).optional(),
